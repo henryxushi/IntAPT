@@ -322,6 +322,7 @@ int main(int argc, char* argv[])
 	stringstream outputfile_stream;
 	outputfile_stream << opt.outdir << "/IntAPT_enum_inst";
 	string outputfile = outputfile_stream.str();
+	cout << "Constructing splicing graph" << endl;
 	readinstance loadData(opt);
 	loadData.readinstance_p(finalInstFile,outputfile);
 	//vector<Info> infolist;
@@ -391,7 +392,7 @@ int main(int argc, char* argv[])
 	}
 
 	cout << "Start writing..." << endl;
-	cout << "IfWriting all\t" << opt.output_all << endl;
+	//cout << "IfWriting all\t" << opt.output_all << endl;
 	for (int i = 0; i < loadData.infolist.size(); i++)
 	{
 		if (!loadData.infolist[i].valid)
@@ -401,13 +402,13 @@ int main(int argc, char* argv[])
 		{
 			if (loadData.infolist[i].output_bool)
 			{
-				//cout << "Writing single\t" << i << endl;
+				//cout << "Writing single\t" << i << "/" << loadData.infolist.size() << endl;
 				loadData.infolist[i].write(opt.outdir,i+1);
 			}
 		}
 		else
 		{
-			//cout << "Writing multiple\t" << i << endl;
+			//cout << "Writing multiple\t" << i << "/" << loadData.infolist.size() << endl;
 			loadData.infolist[i].write(opt.outdir,i+1);
 		}
 		

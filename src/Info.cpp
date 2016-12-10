@@ -38,6 +38,49 @@ void Info::run()
 		VectorXd trans_length;
 		//cout << "start sample par" << endl;
 		calsamplespecificpar(XTX_v, XT_v, slt_idx_v, beta_map_idx_v, all_slt_idx, trans_length);
+		
+		//cout << "-----------------X-----------------" << endl;
+		//cout << X << endl;
+		/*
+		cout << "-----------------X-----------------" << endl;
+		for (int i = 0; i < X_v.size(); i++)
+		{
+			cout << "sample i:" << i << endl;
+			cout << X_v[i] << endl;
+		}
+		
+		cout << "-----------------y-----------------" << endl;
+		for (int i = 0; i < y_v.size(); i++)
+		{
+			cout << "sample i:" << i << endl;
+			cout << y_v[i] << endl;
+		}
+		
+		cout << "-----------------R-----------------" << endl;
+		for (int i = 0; i < R_v.size(); i++)
+		{
+			cout << "sample i:" << i << endl;
+			cout << R_v[i] << endl;
+		}
+		
+		cout << "-----------------L-----------------" << endl;
+		for (int i = 0; i < L_v.size(); i++)
+		{
+			cout << "sample i:" << i << endl;
+			cout << L_v[i] << endl;
+		}
+
+		cout << "-----------------slt_idx_v-----------------" << endl;
+		print_vv_int(slt_idx_v);
+
+		cout << "-----------------beta_map_idx_v-----------------" << endl;
+		print_vv_int(beta_map_idx_v);
+		*/
+
+		//int aa;
+		//cin >> aa;
+		
+		
 		trans_length = transL;
 		//cout << "finish sample par" << endl;
 		int niso = all_slt_idx.size();
@@ -125,12 +168,21 @@ void Info::run()
 
 					VectorXd mu_beta(Map<VectorXd>(mu_betaM.data(),mu_betaM.rows()*mu_betaM.cols()));
 					MatrixXd invsigma_beta = 1/s_sigma2 * A;
+					vector<int> s_beta_idx;
+					for (int k = 0; k < Mt;k++)
+					{
+						int countMt = 0;
+						for (int kk = 0; kk < Nt; kk++)
+							countMt += Xt(kk,k);
+						if (countMt > 0)
+							s_beta_idx.push_back(k);
+					}
 					double p = 0;
 					for (int k = 0; k < 10; k++)
 					{
-						for (int ii = 0; ii < Mt; ii++)
+						for (int ii = 0; ii < s_beta_idx.size(); ii++)
 						{
-							int idx = ii;
+							int idx = s_beta_idx[ii];
 							//idx = ii;
 							VectorXd s_betatemp = s_betat;
 							s_betatemp(idx) = 0;
@@ -185,11 +237,12 @@ void Info::run()
 							double ReadsAssign = Rt(ii);
 							for (int kk = 0; kk < idx_include.size();kk++)
 							{
-								double sampleR = sample.binornd((int)ReadsAssign,s_beta_include_frac(kk));
-								s_Rt(idx_include[kk]) += sampleR;
-								ReadsAssign = ReadsAssign - sampleR;
-								if (ReadsAssign <= 0)
-									break;
+								//double sampleR = sample.binornd((int)ReadsAssign,s_beta_include_frac(kk));
+								//s_Rt(idx_include[kk]) += sampleR;
+								s_Rt(idx_include[kk]) += ReadsAssign * s_beta_include_frac(kk);
+								//ReadsAssign = ReadsAssign - ReadsAssign * s_beta_include_frac(kk);
+								//if (ReadsAssign <= 0)
+								//	break;
 							}
 						}
 						//cout << "Sampling R3 " << i << endl;
@@ -212,7 +265,8 @@ void Info::run()
 					s_R_all(beta_map_idxt[ii],j) = s_Rt(ii);
 					
 				}
-				/*cout << "Xt-----------------" << endl;
+				/*
+				cout << "Xt-----------------" << endl;
 				cout << Xt << endl;
 				cout << "yt-----------------" << endl;
 				cout << yt << endl;
@@ -494,33 +548,22 @@ void Info::calsamplespecificpar(vector<MatrixXd> & XTX, vector<MatrixXd> & XT, v
 		VectorXd L1 = VectorXd::Zero(idx.size());
 		VectorXd sum_Xm1 = VectorXd::Zero(idx.size());
 		trans_length = VectorXd::Zero(beta_idx.size());
-		////cout << "step 3_3 " << endl;
-		
-		/*//cout << "X: " << X.rows() << " " << X.cols() << endl;
-		//cout << "R: " << R.rows() << " " << R.cols() << endl;
-		//cout << "L: " << L.size() << endl;
-		//cout << "X1: " << X1.rows() << " " << X1.cols() << endl;*/
+
 		for (int i = 0; i < idx.size(); i++)
 		{
 			for(int ii = 0; ii < beta_idx.size(); ii++)
 			{
-				////cout << "i,ii " << i << " " << ii << " " << idx[i] << " " << beta_idx[ii] << endl;
 				X1(i,ii) = X(idx[i],beta_idx[ii]);
-				////cout << "label 1" << endl;
 				Xm1(i,ii) = X1(i,ii) * R(idx[i],j);
-				////cout << "label 2" << endl;
 				sum_Xm1(i) += Xm1(i,ii);
-				////cout << "label 3" << endl;
-				trans_length(ii) += X1(i,ii) * L(idx[i]);
-				////cout << "label 4" << endl;
-				
+				trans_length(ii) += X1(i,ii) * L(idx[i]);		
 			}
 			R1(i) = R(idx[i],j);
 			L1(i) = L(idx[i]);
 			y1(i) = R(idx[i],j)/L(idx[i]);
-			//cout << "label 5" << endl;
+			
 		}
-		////cout << "step 3_4 " << endl;
+		
 		MatrixXd XT1 = X1.transpose();
 		XT.push_back(XT1);
 		MatrixXd XTX1 = XT1 * X1;
@@ -535,17 +578,17 @@ void Info::calsamplespecificpar(vector<MatrixXd> & XTX, vector<MatrixXd> & XT, v
 		current_idx.clear();
 		vector<int> new_idx;
 		new_idx.clear();
-		////cout << "step 3_5 " << endl;
+		
 		getIsoIdxForX(current_idx, new_idx, Xm1, sum_Xm1, trans_length);
-		////cout << "step 3_6 " << endl;
+		
 		for (int i = 0; i < new_idx.size(); i++)
 		{
 			all_slt_idxv(beta_idx[new_idx[i]]) = 1;
 		}
 		slt_idx_v.push_back(new_idx);
-		////cout << "step 3_7 " << endl;
+		
 	}
-	////cout << "step 4 " << endl;
+	
 	for (int i = 0; i < all_slt_idxv.size(); i++)
 	{
 		if (all_slt_idxv(i) == 1)
@@ -555,7 +598,7 @@ void Info::calsamplespecificpar(vector<MatrixXd> & XTX, vector<MatrixXd> & XT, v
 		
 }
 
-void Info::preprocess()
+void Info::preprocess() // calculate unique of X
 {
 	vector<int> X_label;
 	vector<vector<double> > y1;
@@ -915,9 +958,62 @@ void Info::write(string outdir, int gene_idx)
 		if (output_all_bool)
 			outfile_all = fopen(output_all_str.c_str(),"a+");
 	}
-	if (false) // or single
+	if (single) // or single
 	{
+		double singletransReads = R.sum()/R.cols();
+		//cout << singletransReads << endl;
+		if (singletransReads > 12)
+		{
+			int idx = label.find_first_of("\t");
+			string chr = label.substr(0,idx);
+			int idx1 = label.find_last_of("\t");
+			string strand = label.substr(idx1+1);
+			stringstream outgene_stream;
+			outgene_stream << "CUFF." << gene_idx;
+			string outgene = outgene_stream.str();
 
+			int i = 0;
+			
+			//cout << "final_isoidx.size(): " << final_isoidx.size() << " X: " << X.cols() << endl;
+
+			set<set<int> > exon_region;
+			//cout << "check 1" << endl;
+			getExonRegion(i,exon_region);
+			//cout << "check 2" << endl;
+			set<set<int> >::iterator it = exon_region.begin();
+			//cout << "exon_region size: " << exon_region.size() << " " << it->size() << endl;
+			set<int>::iterator iti = it->begin();
+			int e_start = *iti;
+			it = exon_region.begin();
+			for (int ii = 0; ii < exon_region.size()-1; ii++)
+				std::advance(it,1);
+			iti = it->begin();
+			std::advance(iti,1);
+			int e_end = *iti;
+			stringstream trans_stream;
+			trans_stream << outgene << "." << i+1;
+			string outtrans = trans_stream.str();
+			if (output_all_bool)
+				fprintf(outfile_all, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+			fprintf(outfile, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+
+			//cout << "check 3" << endl;
+			int exonNum = 1;
+			for (it = exon_region.begin(); it != exon_region.end(); it++)
+			{
+				iti = it->begin();
+				int exon_start = *iti;
+				iti = it->begin();
+				std::advance(iti,1);
+				int exon_end = *iti;
+				if (output_all_bool)
+					fprintf(outfile_all, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+				fprintf(outfile, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+
+				exonNum++;
+			}
+			//cout << "check 4" << endl;
+		}
 	}
 	else
 	{
@@ -931,17 +1027,19 @@ void Info::write(string outdir, int gene_idx)
 
 		for (int i = 0; i < final_isoidx.size(); i++)
 		{
-			////cout << "final_isoidx.size(): " << final_isoidx.size() << " X: " << X.cols() << endl;
+			//cout << "final_isoidx.size(): " << final_isoidx.size() << " X: " << X.cols() << endl;
 
 			set<set<int> > exon_region;
-			////cout << "check 1" << endl;
+			//cout << "check 1" << endl;
 			getExonRegion(i,exon_region);
-			////cout << "check 2" << endl;
+			//cout << "check 2" << endl;
 			set<set<int> >::iterator it = exon_region.begin();
+			//cout << "exon_region size: " << exon_region.size() << " " << it->size() << endl;
 			set<int>::iterator iti = it->begin();
 			int e_start = *iti;
 			it = exon_region.begin();
-			std::advance(it,1);
+			for (int ii = 0; ii < exon_region.size()-1; ii++)
+				std::advance(it,1);
 			iti = it->begin();
 			std::advance(iti,1);
 			int e_end = *iti;
@@ -953,7 +1051,7 @@ void Info::write(string outdir, int gene_idx)
 			if (final_isoidx[i] == 1)
 				fprintf(outfile, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
 
-			////cout << "check 3" << endl;
+			//cout << "check 3" << endl;
 			int exonNum = 1;
 			for (it = exon_region.begin(); it != exon_region.end(); it++)
 			{
@@ -969,7 +1067,7 @@ void Info::write(string outdir, int gene_idx)
 
 				exonNum++;
 			}
-			////cout << "check 4" << endl;
+			//cout << "check 4" << endl;
 			//fprintf(outfile_all, '%s\tSparseIso\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id "%s"; transcript_id "%s"; FPKM "%.6f"; frac "%.6f"; conf_lo "900"; conf_hi "1100"; cov "20";\n',chr.c_str(), e_start, e_end, strand.c_str(); ,outgene, outtrans, FPKM_temp(idx_ident(j)), frac_temp(idx_ident(j)));
 		}
 	}

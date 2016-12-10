@@ -62,8 +62,8 @@ void readinstance::readinstance_p(string inputfile, string outputfile)
 				if (instcount > 0)
 				{
 					//process....
-					if (instcount % 1 == 0)
-						//cout << "process\t" << instcount << "\t" << inst->location << endl;//"\t" << inst->NumofSegs << endl; 
+					//if (instcount % 1 == 0)
+					//	cout << "process\t" << instcount << "\t" << inst->location << endl;//"\t" << inst->NumofSegs << endl; 
 
 					if (!inst->strand.compare("-"))
 					{

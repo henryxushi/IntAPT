@@ -22,9 +22,26 @@ double phi_range(double x, double y);
 double effectL(int l1, int l2, int l3, int r, double mu, double sigma, int bias);
 PathVar::PathVar()
 {
-	maxniso=10;
-	minjuncfrac=0.1;
-	minparentjuncfrac = 0.05;
+	minjuncfrac=0.01;
+	minparentjuncfrac = 0.01;
+	minadjjuncfrac=2;
+	minintronretentioncvgfrac=0.4;
+	minintronretentionlen=10;
+}
+
+void PathVar::setsinglepar()
+{
+	minjuncfrac=0.2;
+	minparentjuncfrac = 0.2;
+	minadjjuncfrac=2;
+	minintronretentioncvgfrac=0.4;
+	minintronretentionlen=10;
+}
+
+void PathVar::setdefaultpar()
+{
+	minjuncfrac=0.01;
+	minparentjuncfrac = 0.01;
 	minadjjuncfrac=2;
 	minintronretentioncvgfrac=0.4;
 	minintronretentionlen=10;
@@ -45,7 +62,7 @@ void Instance::process_inst_se(Info& info, string outputfile)
 		{
 			L.push_back((exonbound[i][1]) - (exonbound[i][0]) + 1);
 		}
-		int output = 0;
+		int output = 1;
 		ofstream outfile1;
 		outfile1.open(outputfile.c_str(),std::ios_base::app);
 		remove_low();
@@ -173,6 +190,18 @@ void Instance::process_inst_se(Info& info, string outputfile)
 				}
 				quit = enumerate_path(exonmap, not_source_list1, not_sink_list1, outfile1, paths);
 			}
+			proc_abun.clear();
+			vector<vector<double> >().swap(proc_abun);
+			proc_R.clear();
+			vector<vector<double> >().swap(proc_R);
+			proc_L.clear();
+			vector<vector<double> >().swap(proc_L);
+			output = 1;
+			map<int,vector<int> >().swap(iscontained);
+			iscontained.clear();
+			findcontain(iscontained);
+			mod_y_se(iscontained, proc_abun, proc_R, proc_L, outfile1, output, th1, min_th1);
+			
 			//cout << "final paths\t" << paths.size() << endl;
 			for (map<int,vector<int> >::iterator it = iscontained.begin();it!=iscontained.end();++it)
 			{
@@ -342,7 +371,8 @@ void Instance::remove_low()
 	for (int i = 0; i < NumofExon; i++)
 	{
 		th = 0; //do not trust the th due to overdispersion.
-		bool ifremove = (mean_abun[i] < max_mean_abun * th) || (mean_abun[i] < -1 || Nsample_sup[i] < 0.2 * NumofSamples || exonp0[i] > NumofSamples - 1 || sumexoncvg[i] / NumofSamples < 3); //use coverage to cut not work for ENCSR310FIS, over-dispersion obvious 
+		//bool ifremove = (mean_abun[i] < max_mean_abun * th) || (mean_abun[i] < -1 || Nsample_sup[i] < 0.2 * NumofSamples || exonp0[i] > NumofSamples - 1 || sumexoncvg[i] / NumofSamples < 3); //use coverage to cut not work for ENCSR310FIS, over-dispersion obvious 
+		bool ifremove = (mean_abun[i] < max_mean_abun * th) || (mean_abun[i] < -1 ||(exonp0[i] > NumofSamples - 1) || sumexoncvg[i] / NumofSamples < 0 || Nsample_sup[i] < 0.2 * NumofSamples); //use coverage to cut not work for ENCSR310FIS, over-dispersion obvious 
 		//cout << i << ": " << mean_abun[i] <<  " " << Nsample_sup[i] << " " << exonp0[i] << " " << sumexoncvg[i] << endl;
 		if (ifremove)
 			removed_exon.push_back(i+1);
@@ -367,7 +397,7 @@ void Instance::remove_low()
 			if (SegAbundance[i][j] > 0)
 				Nsample_sup_seg++;
 		}
-		if (Nsample_sup_seg <= 0.3 * NumofSamples)// <= 1)
+		if (Nsample_sup_seg < 0.2 * NumofSamples)// <= 1) NOTICE HERE!!!!!!!!!!!!!!
 			removed_seg.insert(i+1);
 	}
 
@@ -480,11 +510,14 @@ void Instance::cal_junccount()
 {
 	junccount.clear();
 	junccount.resize(NumofExon,vector<double> (NumofExon,0));
+	juncsup.clear();
+	juncsup.resize(NumofExon,vector<double> (NumofExon,0));
 	for (int i = 0; i < NumofExon; i++)
 	{
 		for (int j = i+1; j < NumofExon; j++)
 		{
 			junccount[i][j] = cal_connreads(i,j);
+			juncsup[i][j] = cal_connsup(i,j);
 		}
 	}
 	sumexoncvg.clear();
@@ -517,6 +550,29 @@ double Instance::cal_connreads(int i, int j)
 	return count;
 }
 
+double Instance::cal_connsup(int i, int j)
+{
+	set<int> count;
+	for(int n = 0; n < SegConf.size(); n++)
+	{
+		if (SegConf[n][i] == 1 and SegConf[n][j] == 1)
+		{
+			int flag = 0;
+			for (int m = i+1; m <= j-1; m++)
+				flag += SegConf[n][m];
+			if (flag == 0)
+			{
+				for (int m = 0; m < NumofSamples; m++)
+				{
+					if (SegAbundance[n][m] > 0)
+						count.insert(m);
+				}
+			}
+		}
+	}
+	return (double)count.size();
+}
+
 void Instance::findchildren(int c, vector<int> &nodes)
 {
 	nodes.clear();
@@ -539,6 +595,9 @@ void Instance::findchildren(int c, vector<int> &nodes)
 	{
 		if (junccount[c][i] > 0)
 		{
+			pathvar.setdefaultpar();
+			if (juncsup[c][i] < min((double)2,0.2*NumofSamples))
+				pathvar.setsinglepar();
 			//if (i == c+1) //here should consider genomic location
 			bool isaccepted = false;
 			if (abs(exonbound[i][0]-exonbound[c][1]) == 1 or abs(exonbound[i][1]-exonbound[c][0]) == 1)
@@ -576,14 +635,23 @@ void Instance::findchildren(int c, vector<int> &nodes)
 				double tmaxj = maxj;
 				if (jumpretention) tmaxj = maxnonjj;
 				if (junccount[c][i] >= tmaxj*pathvar.minjuncfrac)
+				{
 					nodes.push_back(i);
+					//cout << "push " << i << endl;
+				}
 				else
 				{
 					if (junccount[c][i] >= maxnonjj*pathvar.minjuncfrac)
+					{
 						nodes.push_back(i);
+					//	cout << "push " << i << endl;
+					}
+					//else
+					//	cout << "push " << i << " failed" << endl;
 				}
 			}
 		}
+		pathvar.setdefaultpar();
 	}
 
 }
@@ -676,6 +744,10 @@ void Instance::findparent(int c, set<int> &parents, vector<int> &remove_nodes)
 
 	for (set<int>::iterator it = parents.begin(); it != parents.end(); it++)
 	{
+		pathvar.setdefaultpar();
+		if (juncsup[*it-1][c] < min((double)2,0.2*NumofSamples))
+			pathvar.setsinglepar();
+
 		if (junccount[*it-1][c] < maxj * pathvar.minparentjuncfrac)
 			remove_nodes.push_back(*it);
 	}
@@ -728,7 +800,7 @@ int Instance::enumerate_path(map<int,set<int> > &exonmap, int not_source_list[],
 				int path_L = 0;
 				for (int i = 1; i < seg1.visited.size()-1; i++)
 				{
-					path_L += L[seg1.visited[i]];
+					path_L += L[seg1.visited[i]-1];
 					//cout << seg1.visited[i] << " ";
 				}
 				//cout << "L:" << path_L << endl;
@@ -831,7 +903,7 @@ void Instance::mod_X(vector<int> &path, vector<int> &segpath, vector<int> &paths
 			seg_map[i] = 0;
 		}
 	}
-	double path_mean_cov = abun / (double) countmap;
+	//double path_mean_cov = abun / (double) countmap;
 	//if (countmap > 0 && abun > 0.1)
 	if (countmap > 0)
 	{
@@ -1137,205 +1209,3 @@ void print_vector(vector<int> aa)
 	}
 	cout << endl;
 }
-
-int Instance::segStart(int &s1)
-{
-
-	int s1_start = 0;
-	for(s1_start = 0; s1_start < SegConf[s1-1].size(); s1_start++)
-	{
-		if (SegConf[s1-1][s1_start] == 1)
-			break;
-	}
-	return s1_start; // should be s1_start+1
-
-}
-
-void Instance::segStart(int &s1, int &s2, set<int> &s3)
-{
-	for(int i = 0; i < SegConf[s1-1].size(); i++)
-	{
-		if (SegConf[s1-1][i] == 1)
-			s3.insert(i+1);
-	}
-
-	for(int i = 0; i < SegConf[s2-1].size(); i++)
-	{
-		if (SegConf[s2-1][i] == 1)
-			s3.insert(i+1);
-	}
-}
-
-void Instance::intronlength_helper(int &pos1, int &pos2, vector<int> &path, int &intron_l, int &l3, int &bias)
-{
-	intron_l = 0;
-	l3 = 0;
-	bias = 0;
-	if (!strand.compare("-"))
-	{
-		cout << "come neg\n";
-		if (pos1 < pos2)
-		{
-			intron_l = 0;
-			l3 = 0;
-			int l3_temp = 0;
-			exonlength_reverse(pos2,pos1,path,intron_l,bias);
-			intron_l = -intron_l;
-			bias += 1;
-			bias = -bias;
-		}
-		else
-		{
-			//check from pos1 to pos2 the length of intron and exon
-			exonlength_reverse(pos1,pos2,path,intron_l,l3);
-		}
-	}
-	else
-	{
-		cout << "come pos\n";
-		if (pos1 > pos2)
-		{
-			intron_l = 0;
-			l3 = 0;
-			int l3_temp = 0;
-			exonlength_plus(pos2,pos1,path,intron_l,bias);
-			intron_l = -intron_l;
-			bias += 1;
-			bias = -bias;
-		}
-		else
-		{
-			//check from pos1 to pos2 the length of intron and exon
-			exonlength_plus(pos1,pos2,path,intron_l,l3);
-		}
-	}
-	l3 = max(l3,0);
-	bias = min(bias,0);
-}
-
-void Instance::exonlength_plus(int &pos1, int &pos2, vector<int> &path, int &intron_l,int &l3)
-{
-	intron_l = 0;
-	l3 = 0;
-	int matched_in = 0;
-	int preidx = -1;
-	for (int i = 0; i < path.size(); i++)
-	{
-		if (path[i] == 1)
-		{
-			if (matched_in == 1)
-			{
-				intron_l += exonbound[i][0] - exonbound[preidx][1] - 1;
-				if (pos2 <= exonbound[i][1])
-				{
-					l3 += pos2 - exonbound[i][1];
-					break;
-				}
-
-				preidx = i;
-			}
-			if (pos1 >= exonbound[i][0] and pos1 <= exonbound[i][1])
-			{
-				preidx = i;
-				matched_in = 1;
-				if (pos2 <= exonbound[i][1])
-				{
-					l3 = pos2 - pos1 - 1;
-					cout << "comehere " << pos2 << " " << pos1 << " " << l3 << endl;
-					intron_l = 0;
-					break;
-				}
-				l3 += exonbound[i][1] - pos1;
-			}
-		}
-	}
-}
-
-void Instance::exonlength_reverse(int &pos1, int &pos2, vector<int> &path, int &intron_l, int &l3)
-{	
-	intron_l = 0;
-	l3 = 0;
-	int matched_in = 0;
-	int preidx = -1;
-	for (int i = 0; i < path.size(); i++)
-	{
-		if (path[i] == 1)
-		{
-			if (matched_in == 1)
-			{
-				intron_l += exonbound[preidx][0] - exonbound[i][1] - 1;
-				if (pos2 >= exonbound[i][0])
-				{
-					l3 += exonbound[i][1] - pos2;
-					break;
-				}
-
-				preidx = i;
-			}
-			if (pos1 >= exonbound[i][0] & pos1 <= exonbound[i][1])
-			{
-				preidx = i;
-				matched_in = 1;
-				if (pos2 >= exonbound[i][0])
-				{
-					l3 = pos1 - pos2 - 1;
-					intron_l = 0;
-					break;
-				}
-				l3 += pos1 - exonbound[i][0];
-			}
-		}
-	}
-}
-
-
-double normpdf(double x, double mu, double sigma)
-{
-	return exp(-(double)1/2/pow(sigma,2)*pow(x-mu,2));
-}
-
-
-double phi(double x)
-{
-    // constants
-    double a1 =  0.254829592;
-    double a2 = -0.284496736;
-    double a3 =  1.421413741;
-    double a4 = -1.453152027;
-    double a5 =  1.061405429;
-    double p  =  0.3275911;
- 
-    // Save the sign of x
-    int sign = 1;
-    if (x < 0)
-        sign = -1;
-    x = fabs(x)/sqrt(2.0);
- 
-    // A&S formula 7.1.26
-    double t = 1.0/(1.0 + p*x);
-    double y = 1.0 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*exp(-x*x);
- 
-    return 0.5*(1.0 + sign*y);
-}
-
-double phi_range(double x, double y)
-{
-	return (phi(y)-phi(x));
-}
-
-double effectL(int l1, int l2, int l3, int r, double mu, double sigma, int bias)
-{
-	int minl = min(l1,l2);
-	int maxl = max(l1,l2);
-	double l = 0;
-	for (int i = bias; i < bias+minl; i++)
-	{
-		double rangel = i + l3 + 2 * r;
-		double ranger = rangel + maxl;
-		rangel = (rangel - mu - 1) / sigma;
-		ranger = (ranger - mu) / sigma;
-		l += phi_range(rangel,ranger);
-	}
-	return l;
-}
-

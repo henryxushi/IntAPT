@@ -18,11 +18,12 @@ struct Seg
 	vector<int> visited;
 };
 
-struct PathVar
+class PathVar
 {
 public:
 	PathVar();
-	double maxniso;
+	void setsinglepar();
+	void setdefaultpar();
 	double minjuncfrac;
 	double minparentjuncfrac;
 	double minadjjuncfrac;
@@ -33,7 +34,7 @@ public:
 class Instance
 {
 public:
-	Instance(){}
+	Instance(){pathvar.setdefaultpar();}
 	string location;
 	string strand;
 	vector<vector<int> > exonbound;
@@ -60,6 +61,7 @@ public:
 	vector<double> exonp0;
 	vector<vector<double> > exoncvg;
 	vector<vector<double> > junccount;
+	vector<vector<double> > juncsup;
 	vector<double> sumexoncvg;
 	
 	int NumofPaths;
@@ -86,6 +88,7 @@ public:
 	void cal_junccount();
 	void cal_sumexoncvg();
 	double cal_connreads(int i, int j);
+	double cal_connsup(int i, int j);
 	void findchildren(int c, vector<int> &nodes);
 	void refineparents(map<int,set<int> > &exonmap,map<int,set<int> > &rev_exonmap);
 	void findparent(int c, set<int> &parents, vector<int> &remove_nodes);
