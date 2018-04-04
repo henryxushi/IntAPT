@@ -5,6 +5,7 @@
 #include "rangeset.h"
 #include "bedio.h"
 #include <string>
+#include "mergerange.h"
 using namespace std;
 
 bool DEBUG=false;

@@ -29,6 +29,7 @@ public:
 	double minadjjuncfrac;
 	double minintronretentioncvgfrac;
 	double minintronretentionlen;
+	int complicated;
 };
 
 class Instance
@@ -51,7 +52,7 @@ public:
 	double frag_sigma;
 	PathVar pathvar;
 	vector<vector<int> > SegAbundance;
-	vector<int> connSeg; // find SGTypes with connection, count number of exons
+	vector<int> connSeg;
 	vector<vector<int> > PETconnect;
 	vector<int> PET_switch;
 	vector<vector<vector<int> > > PETreads;
@@ -71,11 +72,10 @@ public:
 	void correct_y(vector<vector<int> > &paths, ofstream &outfile,Info &info);
 	void remove_low();
 	void getmap(map<int,set<int> > &exonmap, double &th);
-	int enumerate_path(map<int,set<int> > &exonmap, int not_source_list[], int not_sink_list[], ofstream &outfile, vector<vector<int> > &paths);
+	int enumerate_path(map<int,set<int> > &exonmap, int not_source_list[], int not_sink_list[], ofstream &outfile, vector<vector<int> > &paths, int &remove_label);
 	void mod_X(vector<int> &path, vector<int> &segpath, vector<int> &path_vec, ofstream &outfile);
 	void mod_y(map<int, vector<int> > &iscontained, vector<double> &SegAbundance1, ofstream &outfile, int &output, double &th1, double &min_abun);
-	//void mod_y_se(map<int, vector<int> > &iscontained, vector<double> &SegAbundance1, vector<double> &proc_R, vector<double> &proc_L, ofstream &outfile, int &output, double &th1, double &min_abun);
-	void mod_y_se(map<int, vector<int> > &iscontained, vector<vector<double> > &SegAbundance1, vector<vector<double> > &proc_R, vector<vector<double> > &proc_L, ofstream &outfile, int &output, double &th1, double &min_abun);
+	void mod_y_se(map<int, vector<int> > &iscontained, vector<vector<double> > &SegAbundance1, vector<vector<double> > &proc_R, vector<vector<double> > &proc_L, ofstream &outfile, int &output, double &th1, double &min_abun, int remove_label);
 
 	void findcontain(map<int, vector<int> > &iscontained); // contain: index start from 1
 	int calintronlength(int &s1, int &s2, vector<int> &path, int &l1, int &l2, int &l3, int label, int &bias);
@@ -92,6 +92,7 @@ public:
 	void findchildren(int c, vector<int> &nodes);
 	void refineparents(map<int,set<int> > &exonmap,map<int,set<int> > &rev_exonmap);
 	void findparent(int c, set<int> &parents, vector<int> &remove_nodes);
+	int complicated;
 };
 
 #endif

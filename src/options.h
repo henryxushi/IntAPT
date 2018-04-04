@@ -14,7 +14,7 @@ class Options
 {
 public:
 	Options(){};
-	Options(string s1, string s2, string s3, int s4, double s5, string s6, bool s7, string s8, string s9, bool s10)
+	Options(string s1, string s2, string s3, int s4, double s5, string s6, bool s7, string s8, bool s10)
 	{
 		bamfile = s1;
 		outdir = s2;
@@ -24,7 +24,7 @@ public:
 		InstFile = s6;
 		InstOnly = s7;
 		cempath = s8;
-		samtoolspath = s9;
+		samtoolspath = s8;
 		output_all = s10;
 	};
 
@@ -39,7 +39,7 @@ public:
 	string samtoolspath;
 	bool output_all;
 	bool use_inst;
-	void assign(string s1, string s2, string s3, int s4, double s5, string s6, bool s7, string s8, string s9, bool s10, bool s11);
+	void assign(string s1, string s2, string s3, int s4, double s5, string s6, bool s7, string s8, bool s10, bool s11);
 	int parse_options(int argc, char* argv[]);
 	string usage();
 };
@@ -60,7 +60,6 @@ extern bool OPT_output_all;
 static const char *short_options = "b:r:o:p:c:h:m";
 
 #define OPT_CEMPATH 301
-#define OPT_SAMPATH 302
 #define OPT_OUTPUT_ALL 303
 #define OPT_INSTFILE 304
 #define OPT_INSTONLY 305
@@ -76,8 +75,7 @@ static struct option long_options[] = {
   {"readtype",            required_argument,      0,      'r'},
   {"threads",             required_argument,      0,      'p'},
   {"conf",                required_argument,      0,      'c'},
-  {"cempath",             required_argument,      0,      OPT_CEMPATH},
-  {"sampath",             required_argument,      0,      OPT_SAMPATH},
+  {"IntAPTpath",          required_argument,      0,      OPT_CEMPATH},
   {"outputall",           no_argument,            0,      OPT_OUTPUT_ALL},
 //...
   {0,0,0,0} // terminator

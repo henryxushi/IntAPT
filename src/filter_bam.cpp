@@ -11,7 +11,7 @@ void BAMfilter::filter_bam()
 	//string outfile = argv[2];
     //stringstream outfile_stream;
     //outfile_stream << outdir << "/IntAPT_filtered" << idx <<".bam";
-    string outfile = outdir;
+    string outfile = outdir;//outfile_stream.str();
     string outbamfile = outfile;
 	assert(reader.Open(bamfile));
 	assert(reader.IsOpen());
@@ -20,6 +20,8 @@ void BAMfilter::filter_bam()
     const BamTools::RefVector references = reader.GetReferenceData();
 
     BamTools::BamWriter unstranded_writer;
+    //cout << "bamfile: " << bamfile << endl;
+    //cout << "outfile: " << outfile << endl;
     assert(unstranded_writer.Open(outfile, sam_header, references));
 
     int current_position = -1;
@@ -35,15 +37,23 @@ void BAMfilter::filter_bam()
     while (reader.GetNextAlignment(current_alignment))
     {
     	uint nh_tag;
-        assert(current_alignment.GetTag("NH", nh_tag));
+        uint8_t test_int;
 
+        if(!current_alignment.GetTag("NH", test_int))
+        {
+            continue;
+        }
+
+        nh_tag = test_int;
         if (nh_tag > 1) {
 
             continue;
         }
 
-        assert(current_alignment.IsPaired());
-        assert(!current_alignment.IsFailedQC());
+        if(!current_alignment.IsPaired())
+            continue;
+        if(current_alignment.IsFailedQC())
+            continue;
 
         if (current_alignment.IsMapped() and current_alignment.IsPrimaryAlignment() and current_alignment.IsMateMapped()) {
 
@@ -58,28 +68,7 @@ void BAMfilter::filter_bam()
                     continue;
                 }
 
-                if ((current_position != current_alignment.Position) or (cur_reference != current_alignment.RefID)) {
-
-                    num_reads_paired += read_pairs.size();         
-
-                    addUniqueReads(&unique_reads, &read_pairs);
-                    nd_nm_mapped_paired_end_reads += writeUniqueReads(&unstranded_writer, &unique_reads, &first_reads);
-
-                    if (cur_reference != current_alignment.RefID) {
-    
-                        cur_reference = current_alignment.RefID;
-
-                        assert(unique_reads.empty());
-                        assert(first_reads.empty());
-
-                    } else {
-
-                        assert(current_position < current_alignment.Position);
-                    }
-                }
-
-                markDuplicates(current_alignment, &first_reads, &read_pairs);
-                current_position = current_alignment.Position;
+                unstranded_writer.SaveAlignment(current_alignment);
             }
         }
     }
@@ -134,6 +123,10 @@ string BAMfilter::generateCigarString(vector<BamTools::CigarOp> & cigar_data) {
 
             read_cigar << it->Length << "N";
         
+        } else if (it->Type == 'S') {
+
+            read_cigar << it->Length << "S";
+        
         } else if (!(it->Type == 'I')) {
 
             cerr << "ERROR: Unhandled cigar string symbol '" << it->Type << "'!" << endl;
@@ -168,9 +161,11 @@ double BAMfilter::writeUniqueReads(BamTools::BamWriter * writer, UniqueReads * u
     while (uit->first < left_most_position and !unique_reads->empty()) {
 
         cur_hi_tag = 0;
-    
-        assert(uit->second->GetTag("NH", cur_nh_tag));
-        assert(uit->second->GetTag("HI", cur_hi_tag) or (cur_nh_tag == 1));
+        uint8_t test_int;
+        assert(uit->second->GetTag("NH", test_int));
+        cur_nh_tag = test_int;
+        assert(uit->second->GetTag("HI", test_int) or (cur_nh_tag == 1));
+        cur_hi_tag = test_int;
 
         if (cur_nh_tag == 1) {
 
@@ -191,8 +186,9 @@ void BAMfilter::markDuplicates(BamTools::BamAlignment & current_alignment, First
 {
 
     uint cur_hi_tag = 0;
-    current_alignment.GetTag("HI", cur_hi_tag);
-
+    uint8_t test_int;
+    current_alignment.GetTag("HI", test_int);
+    cur_hi_tag = test_int;
     ReadId ri;
     ri.name = current_alignment.Name;
     ri.hi_tag = cur_hi_tag;
@@ -220,7 +216,7 @@ void BAMfilter::markDuplicates(BamTools::BamAlignment & current_alignment, First
 
         if (pos_first_reads_it == first_reads_it->second.end()) {
 
-            assert(current_alignment.Position == current_alignment.MatePosition);
+            //assert(current_alignment.Position == current_alignment.MatePosition);
             assert(first_reads_it->second.insert(pair<ReadId, BamTools::BamAlignment*>(ri, new BamTools::BamAlignment(current_alignment))).second);            
         
         } else {
@@ -243,15 +239,19 @@ void BAMfilter::markDuplicates(BamTools::BamAlignment & current_alignment, First
             } else {
 
                 uint cur_first_nh_tag;
-                assert(pos_first_reads_it->second->GetTag("NH", cur_first_nh_tag));
-
+                uint8_t test_int;
+                assert(pos_first_reads_it->second->GetTag("NH", test_int));
+                cur_first_nh_tag = test_int;
+        
                 uint cur_second_nh_tag;
-                assert(current_alignment.GetTag("NH", cur_second_nh_tag));
-
+                assert(current_alignment.GetTag("NH", test_int));
+                cur_second_nh_tag = test_int;
+        
                 assert(cur_first_nh_tag == cur_second_nh_tag);
 
                 uint prev_nh_tag;
-                assert(read_pairs_it->second.first->GetTag("NH", prev_nh_tag));
+                assert(read_pairs_it->second.first->GetTag("NH", test_int));
+                prev_nh_tag = test_int;
 
                 if (cur_first_nh_tag == 1 and prev_nh_tag > 1) {
 

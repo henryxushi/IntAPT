@@ -22,8 +22,9 @@ double phi_range(double x, double y);
 double effectL(int l1, int l2, int l3, int r, double mu, double sigma, int bias);
 PathVar::PathVar()
 {
-	minjuncfrac=0.01;
-	minparentjuncfrac = 0.01;
+	complicated = 1;
+	minjuncfrac=0.2;
+	minparentjuncfrac = 0.2;
 	minadjjuncfrac=2;
 	minintronretentioncvgfrac=0.4;
 	minintronretentionlen=10;
@@ -40,15 +41,28 @@ void PathVar::setsinglepar()
 
 void PathVar::setdefaultpar()
 {
-	minjuncfrac=0.01;
-	minparentjuncfrac = 0.01;
-	minadjjuncfrac=2;
-	minintronretentioncvgfrac=0.4;
-	minintronretentionlen=10;
+	if (complicated == 0)
+	{
+		minjuncfrac=0.01;
+		minparentjuncfrac = 0.01;
+		minadjjuncfrac=2;
+		minintronretentioncvgfrac=0.4;
+		minintronretentionlen=10;
+	}
+	else
+	{
+		minjuncfrac=0.2;
+		minparentjuncfrac = 0.2;
+		minadjjuncfrac=2;
+		minintronretentioncvgfrac=0.4;
+		minintronretentionlen=10;
+	}
 }
 
 void Instance::process_inst_se(Info& info, string outputfile)
 {
+	pathvar.complicated = complicated;
+	pathvar.setdefaultpar();
 	//enumberate path
 	info.clear();
 	if (SegAbundance.size() == 0)
@@ -78,6 +92,7 @@ void Instance::process_inst_se(Info& info, string outputfile)
 		map<int, vector<int> > iscontained;
 		findcontain(iscontained);
 		outfile1 << "Instance\t" << location << endl;
+
 		info.label = location;
 		outfile1 << "ExonBound\t" << exonbound.size() << endl;
 		for (int i = 0; i < exonbound.size(); i++)
@@ -88,21 +103,12 @@ void Instance::process_inst_se(Info& info, string outputfile)
 		
 		double th1 = 0;
 		double min_th1 = 0;
-
-		mod_y_se(iscontained, proc_abun, proc_R, proc_L, outfile1, output, th1, min_th1);
+		int remove_label = 0;
+		mod_y_se(iscontained, proc_abun, proc_R, proc_L, outfile1, output, th1, min_th1, remove_label);
 
 		map<int,set<int> > exonmap; 
 		getmap(exonmap, th1); // exonmap minvalue 1
-		/*for (map<int,set<int> >::iterator mapit = exonmap.begin();mapit!=exonmap.end();++mapit)
-		{
-			cout << mapit->first << ": ";
-			for (set<int>::iterator setit = mapit->second.begin(); setit != mapit->second.end();setit++)
-				cout << *setit <<" ";
-			cout << endl;
-		}*/
-
-		//if(!exonmap.empty())
-		//{
+	
 			set<int>::iterator it;
 			int not_source_list[NumofExon];
 			int not_sink_list[NumofExon];
@@ -128,13 +134,12 @@ void Instance::process_inst_se(Info& info, string outputfile)
 			
 			vector<vector<int> > paths;
 			double mod_y_th = 0;
-			int quit = enumerate_path(exonmap, not_source_list, not_sink_list, outfile1, paths);
+			int quit = enumerate_path(exonmap, not_source_list, not_sink_list, outfile1, paths, remove_label);
 			while(quit == -1)
 			{
 				for (map<int,vector<int> >::iterator it = iscontained.begin();it!=iscontained.end();++it)
 				{
 					vector<int>().swap(it->second);
-					//exonmap.erase(it);
 				}
 
 				map<int,vector<int> >().swap(iscontained);
@@ -145,7 +150,6 @@ void Instance::process_inst_se(Info& info, string outputfile)
 				{
 					break;
 				}
-				//cout << "new threshold\t" << th1 << endl;
 				output = 0;
 				proc_abun.clear();
 				vector<vector<double> >().swap(proc_abun);
@@ -153,12 +157,11 @@ void Instance::process_inst_se(Info& info, string outputfile)
 				vector<vector<double> >().swap(proc_R);
 				proc_L.clear();
 				vector<vector<double> >().swap(proc_L);
-				mod_y_se(iscontained, proc_abun, proc_R, proc_L, outfile1, output, th1, min_th1);
+				mod_y_se(iscontained, proc_abun, proc_R, proc_L, outfile1, output, th1, min_th1, remove_label);
 				//cout << "current number of segs in inst\t" << SegConf.size() << "\t" << NumofSegs << "\t" << SegAbundance.size() << endl;
 				for (map<int,set<int> >::iterator it = exonmap.begin();it!=exonmap.end();++it)
 				{
 					set<int>().swap(it->second);
-					//exonmap.erase(it);
 				}
 
 				map<int,set<int> >().swap(exonmap);
@@ -179,8 +182,6 @@ void Instance::process_inst_se(Info& info, string outputfile)
 					set<int> temp = (*ii).second;
 					if (!temp.empty())
 					{
-						//cout << inst->NumofExon << endl;
-						//cout << key << endl;
 						not_sink_list1[key - 1] = 1;
 						for (it = temp.begin(); it != temp.end(); ++it)
 						{
@@ -188,7 +189,7 @@ void Instance::process_inst_se(Info& info, string outputfile)
 						}
 					}
 				}
-				quit = enumerate_path(exonmap, not_source_list1, not_sink_list1, outfile1, paths);
+				quit = enumerate_path(exonmap, not_source_list1, not_sink_list1, outfile1, paths, remove_label);
 			}
 			proc_abun.clear();
 			vector<vector<double> >().swap(proc_abun);
@@ -200,9 +201,8 @@ void Instance::process_inst_se(Info& info, string outputfile)
 			map<int,vector<int> >().swap(iscontained);
 			iscontained.clear();
 			findcontain(iscontained);
-			mod_y_se(iscontained, proc_abun, proc_R, proc_L, outfile1, output, th1, min_th1);
+			mod_y_se(iscontained, proc_abun, proc_R, proc_L, outfile1, output, th1, min_th1, remove_label);
 			
-			//cout << "final paths\t" << paths.size() << endl;
 			for (map<int,vector<int> >::iterator it = iscontained.begin();it!=iscontained.end();++it)
 			{
 				vector<int>().swap(it->second);
@@ -245,13 +245,6 @@ void Instance::process_inst_se(Info& info, string outputfile)
 			{
 				info.valid = true;
 				info.mody(proc_abun);
-				//cout << "R processed" << endl;
-				/*for (int ii = 0; ii < proc_R.size(); ii++)
-				{
-					for (int jj = 0; jj < proc_R[ii].size(); jj++)
-						cout << proc_R[ii][jj] << " ";
-					cout << endl;
-				}*/
 				info.modR(proc_R);
 				vector<double> push_L;
 				for (int ii = 0; ii < NumofSegs; ii++)
@@ -288,7 +281,6 @@ void Instance::process_inst_se(Info& info, string outputfile)
 					}
 					
 				}
-				//cout << "modinfo " << endl;
 				if (segpath_all.size() == 0)
 					info.valid = false;
 				else
@@ -311,7 +303,6 @@ void Instance::process_inst_se(Info& info, string outputfile)
 		for (map<int,set<int> >::iterator it = exonmap.begin();it!=exonmap.end();++it)
 		{
 			set<int>().swap(it->second);
-			//exonmap.erase(it);
 		}
 
 		map<int,set<int> >().swap(exonmap);
@@ -321,7 +312,6 @@ void Instance::process_inst_se(Info& info, string outputfile)
 		{
 			vector<int>().swap(it->second);
 		}
-		//cout << "Finish moding and assign single" << endl;
 		map<int,vector<int> >().swap(iscontained);
 		iscontained.clear();
 		if (info.valid)
@@ -355,7 +345,6 @@ void Instance::remove_low()
 		Nsample_sup[i] = 0;
 		for (int ii = 0; ii < NumofSamples; ii++)
 		{
-			//mean_abun1 += (exonAbundance[i][ii] / L[i]);
 			mean_abun1 += exonAbundance[i][ii];
 			if (exonAbundance[i][ii]/L[i] > 3)
 				Nsample_sup[i]+=100;
@@ -371,9 +360,11 @@ void Instance::remove_low()
 	for (int i = 0; i < NumofExon; i++)
 	{
 		th = 0; //do not trust the th due to overdispersion.
-		//bool ifremove = (mean_abun[i] < max_mean_abun * th) || (mean_abun[i] < -1 || Nsample_sup[i] < 0.2 * NumofSamples || exonp0[i] > NumofSamples - 1 || sumexoncvg[i] / NumofSamples < 3); //use coverage to cut not work for ENCSR310FIS, over-dispersion obvious 
-		bool ifremove = (mean_abun[i] < max_mean_abun * th) || (mean_abun[i] < -1 ||(exonp0[i] > NumofSamples - 1) || sumexoncvg[i] / NumofSamples < 0 || Nsample_sup[i] < 0.2 * NumofSamples); //use coverage to cut not work for ENCSR310FIS, over-dispersion obvious 
-		//cout << i << ": " << mean_abun[i] <<  " " << Nsample_sup[i] << " " << exonp0[i] << " " << sumexoncvg[i] << endl;
+		bool ifremove = false;
+		if (complicated)
+			ifremove=(exonp0[i] > 0.8 * NumofSamples || sumexoncvg[i] / NumofSamples < 1.5 || Nsample_sup[i] < 0.2 * NumofSamples);  
+		else
+			ifremove=(exonp0[i] > NumofSamples - 1 || Nsample_sup[i] < 0.2 * NumofSamples);
 		if (ifremove)
 			removed_exon.push_back(i+1);
 	}
@@ -397,13 +388,12 @@ void Instance::remove_low()
 			if (SegAbundance[i][j] > 0)
 				Nsample_sup_seg++;
 		}
-		if (Nsample_sup_seg < 0.2 * NumofSamples)// <= 1) NOTICE HERE!!!!!!!!!!!!!!
+		if (Nsample_sup_seg < 0.2 * NumofSamples)
 			removed_seg.insert(i+1);
 	}
 
 	for (int i = 0; i < removed_exon.size(); i++)
 	{
-		//cout << "removed\t" << removed_exon[i]-1 << endl;
 		vector<int>().swap(exonbound[removed_exon[i]-1-i]);
 		exonbound.erase(exonbound.begin()+removed_exon[i]-1-i);
 		vector<double>().swap(exonAbundance[removed_exon[i]-1-i]);
@@ -413,34 +403,10 @@ void Instance::remove_low()
 
 		for (int j = 0; j < NumofSegs; j++)
 		{
-			//cout << "i " << i << " j " << j << " SegConf[j].size() " << SegConf[j].size() << " removed_exon[i] " << removed_exon[i] << endl; 
 			SegConf[j].erase(SegConf[j].begin()+removed_exon[i] - 1 - i);
 		}
 	}
 	NumofExon = NumofExon - removed_exon.size();
-
-	
-
-	// remove duplicate segments
-	/*for (int i = 0; i < SegConf.size(); i++)
-	{
-		for (int j = i + 1; j < SegConf.size(); j++)
-		{
-			int countsame = 0;
-			for (int ii = 0; ii < SegConf[i].size(); ii++)
-			{
-				countsame += abs(SegConf[i][ii] - SegConf[j][ii]);
-			}
-			if (countsame == 0)
-			{
-				for(int jj = 0; jj < NumofSamples; jj++)
-				{
-					SegAbundance[i][jj] += SegAbundance[j][jj];
-				}
-				removed_seg.insert(removed_seg.end(),j+1);
-			}
-		}
-	}*/
 	
 	// remove all 0's segments
 	for (int j = 0; j < SegConf.size(); j++)
@@ -462,7 +428,6 @@ void Instance::remove_low()
 	int removetemp = 0;
 	for(it = removed_seg.begin(); it != removed_seg.end(); ++it)
 	{	
-		//cout << "remove seg (remove_low)" << *it << endl; 
 		vector<int>().swap(SegConf[*it-1-removetemp]);
 		SegConf.erase(SegConf.begin() + *it - 1 - removetemp);
 		vector<int>().swap(SegAbundance[*it-1-removetemp]);
@@ -475,9 +440,7 @@ void Instance::remove_low()
 
 	vector<int> connSeg1 (SegConf.size(),0);
 	for (int j = 0; j < SegConf.size(); j++)
-	{
-		//cout << j << "\t" << SegConf.size() << endl;
-		
+	{		
 		for (int ii = 0; ii < SegConf[j].size(); ii++)
 		{
 			if (SegConf[j][ii] == 1)
@@ -487,9 +450,7 @@ void Instance::remove_low()
 		}
 	}
 	
-	//cout << connSeg.size() << endl;
 	connSeg.swap(connSeg1);
-	//cout << connSeg.size() << endl;
 	vector<int>().swap(connSeg1);
 	connSeg1.clear();
 	NumofSegs = connSeg.size();
@@ -589,7 +550,6 @@ void Instance::findchildren(int c, vector<int> &nodes)
 		if (junccount[c][i] > 0)
 			ncandidate++;
 	}
-	//cout << c+1 << ": " << ncandidate << " candidates" << endl;
 	bool jumpretention = false;
 	for (int i = c+1; i < NumofExon; i++)
 	{
@@ -602,16 +562,12 @@ void Instance::findchildren(int c, vector<int> &nodes)
 			bool isaccepted = false;
 			if (abs(exonbound[i][0]-exonbound[c][1]) == 1 or abs(exonbound[i][1]-exonbound[c][0]) == 1)
 			{
-				//intron retention
-				//cout << "retention " << c+1 << " " << i+1 << endl;
 				double mfrac = pathvar.minjuncfrac * pathvar.minadjjuncfrac;
 				if (mfrac>1)
 					mfrac = 1;
 				double cvgc = sumexoncvg[c]; //total coverage of c
 				double cvgi = sumexoncvg[i]; //total coverage of i
-				//cout << "coverage " << cvgc << " " << cvgi  << " " << cvgc*pathvar.minintronretentioncvgfrac << endl;
 				int ccount = junccount[c][i];
-				//bool isaccepted = false;
 				if (ncandidate == 1) isaccepted = true;
 				if (ccount >= maxj*mfrac)
 				{
@@ -628,7 +584,7 @@ void Instance::findchildren(int c, vector<int> &nodes)
 				else
 					jumpretention = true;
 			}
-			//else
+			
 			if (isaccepted == false)
 			{
 				//junctions
@@ -637,17 +593,13 @@ void Instance::findchildren(int c, vector<int> &nodes)
 				if (junccount[c][i] >= tmaxj*pathvar.minjuncfrac)
 				{
 					nodes.push_back(i);
-					//cout << "push " << i << endl;
 				}
 				else
 				{
 					if (junccount[c][i] >= maxnonjj*pathvar.minjuncfrac)
 					{
 						nodes.push_back(i);
-					//	cout << "push " << i << endl;
 					}
-					//else
-					//	cout << "push " << i << " failed" << endl;
 				}
 			}
 		}
@@ -660,7 +612,6 @@ void Instance::getmap(map<int,set<int> > &exonmap, double &th)
 {
 	cal_junccount();
 	cal_sumexoncvg();
-	//cout << "c graph:" << endl;
 	map<int,set<int> > rev_exonmap;
 	for (int i = 0; i < NumofExon; i++)
 	{
@@ -668,38 +619,19 @@ void Instance::getmap(map<int,set<int> > &exonmap, double &th)
 		findchildren(i,nodes);
 		if (nodes.size()>0)
 		{
-			//cout << i+1 << ": ";
 			for (int j = 0; j < nodes.size(); j++)
 			{
-				//cout << nodes[j]+1 << " ";
 				exonmap[i+1].insert(nodes[j]+1);
 				rev_exonmap[nodes[j]+1].insert(i+1);
 			}
-			//cout << endl;
 		}
 	}
-	/*cout << "map before p:" << endl;
-	for (map<int,set<int> >::iterator mapit = exonmap.begin();mapit!=exonmap.end();++mapit)
-	{
-		cout << mapit->first << ": ";
-		for (set<int>::iterator setit = mapit->second.begin(); setit != mapit->second.end();setit++)
-			cout << *setit <<" ";
-		cout << endl;
-	}*/
+
 	refineparents(exonmap,rev_exonmap);
-	/*cout << "map after p:" << endl;
-	for (map<int,set<int> >::iterator mapit = exonmap.begin();mapit!=exonmap.end();++mapit)
-	{
-		cout << mapit->first << ": ";
-		for (set<int>::iterator setit = mapit->second.begin(); setit != mapit->second.end();setit++)
-			cout << *setit <<" ";
-		cout << endl;
-	}*/
 }
 
 void Instance::refineparents(map<int,set<int> > &exonmap, map<int,set<int> > &rev_exonmap)
 {
-	//cout << "remove parents:" << endl;
 	for(map<int,set<int> >::iterator it = rev_exonmap.begin(); it != rev_exonmap.end(); it++)
 	{
 		int node_id = it->first;
@@ -707,19 +639,14 @@ void Instance::refineparents(map<int,set<int> > &exonmap, map<int,set<int> > &re
 		{
 			vector<int> remove_nodes;
 			findparent(node_id-1,it->second, remove_nodes);
-			//cout << "node *" << node_id << ": ";
 			for(int i = 0; i < remove_nodes.size(); i++)
 			{
-				//cout << remove_nodes[i] << "-";
 				map<int,set<int> >::iterator rmit = exonmap.find(remove_nodes[i]);
 				set<int>::iterator rmsetit = rmit->second.find(node_id);
-				//cout << *rmsetit << "-" << rmit->second.size() <<"-";
 				rmit->second.erase(rmsetit);
-				//cout << rmit->second.size() <<" ";
 				if (rmit->second.size() == 0)
 					exonmap.erase(rmit);
 			}
-			//cout << endl;
 		}
 		
 
@@ -753,31 +680,27 @@ void Instance::findparent(int c, set<int> &parents, vector<int> &remove_nodes)
 	}
 }
 
-int Instance::enumerate_path(map<int,set<int> > &exonmap, int not_source_list[], int not_sink_list[], ofstream &outfile, vector<vector<int> > &paths)
+int Instance::enumerate_path(map<int,set<int> > &exonmap, int not_source_list[], int not_sink_list[], ofstream &outfile, vector<vector<int> > &paths, int &remove_label)
 {
+	remove_label = 1;
 	for (int i = 0; i < NumofExon; i++)
 	{
 		if (not_source_list[i] == 0)
 		{
-			//cout << "source " << i + 1 << endl;
 			set<int>::iterator it = exonmap[0].end();
 			exonmap[0].insert(it,i+1);
 		}
 	}
 	for (int i = 0; i < NumofExon; i++)
 	{
-		//cout << not_sink_list[i] << endl;
 		if (not_sink_list[i] == 0)
 		{
-			//cout << "sink " << i + 1 << endl;
 			set<int>::iterator it = exonmap[i+1].end();
 			exonmap[i+1].insert(it,NumofExon+1);
 		}
 
 	}
 
-	//vector<vector<int> > paths;
-	//vector<int> single_path;
 	//apply depth first search
 	list<Seg> stack;
 	Seg* seg = new Seg();
@@ -801,15 +724,11 @@ int Instance::enumerate_path(map<int,set<int> > &exonmap, int not_source_list[],
 				for (int i = 1; i < seg1.visited.size()-1; i++)
 				{
 					path_L += L[seg1.visited[i]-1];
-					//cout << seg1.visited[i] << " ";
 				}
-				//cout << "L:" << path_L << endl;
 				if (path_L > 100)
 				{
 					paths.push_back(seg1.visited);
-					//mod_X(seg1.visited, SegConf, NumofSegs, NumofExon, outfile);
 					countpath++;
-					//path_all.push_back(seg1.visited);
 				}
 				
 			}
@@ -830,7 +749,7 @@ int Instance::enumerate_path(map<int,set<int> > &exonmap, int not_source_list[],
 
 			}
 		}
-		if (countpath > MAX_NUM_PATH)
+		if (countpath > 2*MAX_NUM_PATH)
 		{
 			for (int i = 0; i < paths.size(); i++)
 			{
@@ -843,21 +762,15 @@ int Instance::enumerate_path(map<int,set<int> > &exonmap, int not_source_list[],
 		}
 			
 	}
+	remove_label = 0;
 	if (countpath <= MAX_NUM_PATH)
 	{
-		/*for (int i = 0; i < paths.size(); i++)
-			mod_X(paths[i],SegConf,NumofSegs,NumofExon,outfile);
-		for (int i = 0; i < paths.size(); i++)
-		{
-			paths[i].clear();
-			vector<int>().swap(paths[i]);
-		}
-		paths.clear();
-		vector<vector<int> >().swap(paths);	*/
+		remove_label = 0;
 		return 0;
 	}
 	else
 	{
+		remove_label = 0;
 		for (int i = 0; i < paths.size(); i++)
 		{
 			paths[i].clear();
@@ -874,7 +787,6 @@ int Instance::enumerate_path(map<int,set<int> > &exonmap, int not_source_list[],
 void Instance::mod_X(vector<int> &path, vector<int> &segpath, vector<int> &paths_vec, ofstream &outfile)
 {
 	//transpose of final X !!!!!!!!!!!
-	//cout << NumofExon << endl;
 	paths_vec.clear();
 	paths_vec.resize(NumofExon,0);
 	int path_vec[NumofExon];
@@ -883,9 +795,7 @@ void Instance::mod_X(vector<int> &path, vector<int> &segpath, vector<int> &paths
 	{
 		paths_vec[path[i]-1] = 1;
 		path_vec[path[i]-1] = 1;
-		//cout << path[i] << " ";
 	}
-	//cout << endl;
 
 	int seg_map[NumofSegs];
 	memset(seg_map,0,sizeof(seg_map));
@@ -896,15 +806,13 @@ void Instance::mod_X(vector<int> &path, vector<int> &segpath, vector<int> &paths
 		{
 			seg_map[i] = 1;
 			countmap++;
-			//abun += proc_abun[i];
 		}
 		else
 		{
 			seg_map[i] = 0;
 		}
 	}
-	//double path_mean_cov = abun / (double) countmap;
-	//if (countmap > 0 && abun > 0.1)
+
 	if (countmap > 0)
 	{
 		for (int i = 0; i < NumofExon; i++)
@@ -929,12 +837,9 @@ void Instance::mod_X(vector<int> &path, vector<int> &segpath, vector<int> &paths
 	
 }
 
-void Instance::mod_y_se(map<int, vector<int> > &iscontained, vector<vector<double> > &SegAbundance1, vector<vector<double> > &proc_R, vector<vector<double> > &proc_L, ofstream &outfile, int &output, double &th1, double &min_abun)
+void Instance::mod_y_se(map<int, vector<int> > &iscontained, vector<vector<double> > &SegAbundance1, vector<vector<double> > &proc_R, vector<vector<double> > &proc_L, ofstream &outfile, int &output, double &th1, double &min_abun, int remove_label)
 {
-	//cout << "here" << endl;
-	//vector<vector<int> > &SegConf, vector<int> &SegAbundance, vector<vector<int> > &ExonBound, vector<int> &connSeg, vector<double> &SegAbundance1, int &NumofSegs, int NumofExon, int READLEN
 	vector<int> READLEN = ReadLen;
-	//vector<double> SegAbundance1;
 	double max_abun = -1.0;
 	double th = 0.01;
 	int counttemp = 0;
@@ -946,18 +851,14 @@ void Instance::mod_y_se(map<int, vector<int> > &iscontained, vector<vector<doubl
 	for (int n = 0; n < READLEN.size(); n++)
 	{
 		vector<int> SegAbundance11;
-		//cout << "sample " << n << endl;
 		for (int nn = 0; nn < SegAbundance.size(); nn++)
 		{
 			SegAbundance11.push_back(SegAbundance[nn][n]);
-			//cout << SegAbundance[nn][n] << " ";
 		}
-		//cout << endl;
 		int READLEN1 = READLEN[n];
 		for (int i = 0; i < NumofSegs; i++)
 		{
 			int sumy = SegAbundance11[i];
-			//cout << i << "\t" << sumy << "!!!" << endl;
 			double abun = 0;
 			int adjusted_length = 1;
 			map<int,vector<int> >::iterator it;
@@ -1029,17 +930,6 @@ void Instance::mod_y_se(map<int, vector<int> > &iscontained, vector<vector<doubl
 			}
 			if (adjusted_length <= 0)
 				adjusted_length = 1;
-			/*cout << "SegConf " << i << ": " << endl;
-			for (int kk = 0; kk < SegConf[i].size(); kk++)
-			{
-				if (SegConf[i][kk] == 1)
-				{
-					cout << kk << ":" << L[kk] << " ";
-				}
-			}
-			cout << endl;*/
-			
-			//cout << "seg " << i+1 << " " << sumy << " " << adjusted_length << endl;
 			abun = (double)sumy / ((double)adjusted_length);
 			s_R.push_back(sumy);
 			s_L.push_back(adjusted_length);
@@ -1058,6 +948,7 @@ void Instance::mod_y_se(map<int, vector<int> > &iscontained, vector<vector<doubl
 
 	if (output == 0)
 	{
+		set<double> abun_all;
 		vector<int> removed_seg;
 		vector<double> mean_abun;
 		double max_mean_abun = 0;
@@ -1069,7 +960,6 @@ void Instance::mod_y_se(map<int, vector<int> > &iscontained, vector<vector<doubl
 			for (int ii = 0; ii < READLEN.size(); ii++)
 			{
 				mean_abun1 += SegAbundance1[ii][i];
-				//mean_abun1 += SegAbundance[ii][i];
 				if (SegAbundance1[ii][i] > 2)
 					Nsample_sup[i]+=100;
 				else if (SegAbundance1[ii][i] > 0)
@@ -1095,15 +985,24 @@ void Instance::mod_y_se(map<int, vector<int> > &iscontained, vector<vector<doubl
 			{
 				if (connSeg[i] > 1)
 				{
+					abun_all.insert(mean_abun[i]);
 					if (mean_abun[i] < min_abun)
 						min_abun = mean_abun[i];
 				}
 			}
 		}
+		if (remove_label == 1)
+		{
+			set<double>::iterator it = abun_all.begin();
+			int move = round(0.1 * (double)abun_all.size());
+			for (int i = 0; i < move; i++)
+				it++;
+
+			min_abun = *it;
+		}
 
 		for (int j = 0; j < removed_seg.size(); j++)
 		{
-			//cout << "removed seg\t" << removed_seg[j] << endl;
 			vector<int>().swap(SegConf[removed_seg[j]-1-j]);
 			SegConf.erase(SegConf.begin() + removed_seg[j] - 1 - j);
 			connSeg.erase(connSeg.begin() + removed_seg[j] - 1 - j);
@@ -1126,7 +1025,6 @@ void Instance::findcontain(map<int, vector<int> > &iscontained) // contain: inde
 			if (ifcontain_vec(SegConf[i],SegConf[j]) && i != j)
 			{
 				iscontained[j+1].push_back(i+1);
-				//cout << j+1 << "\tcontain\t" << i+1 << endl;
 			}
 		}
 	}
@@ -1152,7 +1050,6 @@ bool ifcontain_vec(vector<int> &a, vector<int> &b)
 		} 
 		if (b[ii] == 1 && countj >= 0)
 		{
-			//cout << "here\t" << idx1 << "\t" << ii << endl;
 			if (idx1 < ii)
 			{
 				ifcontain = -1;
@@ -1173,7 +1070,6 @@ bool ifcontain_arr(int a[], vector<int> &b) //path to segs
 {
 	int tempmin = INT_MAX;
 	int tempmax = -1;
-	//int ifcontain = 0; int idx1 = tempmax; int countj = 0;
 	for (int ii = 0; ii < b.size(); ii++)
 	{
 		if (a[ii] - b[ii] == -1)

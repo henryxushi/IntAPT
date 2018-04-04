@@ -64,11 +64,10 @@ public:
 	void addL(double s_L);
 	void modexonbound(vector<vector<int> > &s_bound);
 	void modbias(vector<double> &s_bias);
-	void correct_bias();
 	void getIsoIdxForX(vector<int> &current_idx, vector<int> &new_idx, MatrixXd &X_m, VectorXd &sumX_m, VectorXd &trans_length); //choose the isoform to explain all reads
 	void calFPKM(VectorXd s_beta, VectorXd& FPKM, VectorXd& s_reads);
 	void write(string outdir, int idx);
-	void getExonRegion(int isoidx, set<set<int> >& exon_region); //get the exon boundaries for isoform isoidx
+	void getExonRegion(int isoidx, set<vector<int> >& exon_region); //get the exon boundaries for isoform isoidx
 	double get_muth(double p, int idx, VectorXd s_beta);
 	bool output_bool;
 	bool valid;

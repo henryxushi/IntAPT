@@ -2,9 +2,6 @@
 #define SAMPLING_H
 
 #include <iostream>
-/*#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/normal_distribution.hpp>
-#include <boost/random/variate_generator.hpp>*/
 #include <boost/random.hpp>
 #include <math.h>
 #include <algorithm>
@@ -41,7 +38,6 @@ public:
 			scale = pow(10,-6);
 		if (isinf(scale) or scale > pow(10,6))
 			scale = pow(10,6);
-		//cout << "shape: " << shape << " scale: " << scale << endl;
 		boost::gamma_distribution<double> dist(shape,1/scale);
 		boost::variate_generator<ENG,boost::gamma_distribution<double> > gen(eng,dist);
 		return 1/gen();
@@ -68,10 +64,8 @@ public:
 		double z = (x0-mu)/sigma;
 		for (int i = 0; i < Nsamples; i++)
 		{
-			//double logy = -0.5*pow(z,2) + log((double) rand() / (double)(RAND_MAX));
 			double logy = -0.5*pow(z,2) + log(gen());
 			double cz = max(az, -sqrt(-2*logy));
-			//double dz = min(bz, sqrt(-2*logy));
 			double dz = sqrt(-2*logy);
 			z = cz + (dz-cz) * gen();
 			x[i] = mu + sigma * z;

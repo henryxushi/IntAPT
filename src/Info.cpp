@@ -13,9 +13,21 @@ void print_v_int(vector<int> v);
 void print_vv_int(vector<vector<int> > v);
 void vectorcptoMat(vector<vector<double> > &a, MatrixXd &b);
 bool vector_matchX(MatrixXd X, int a, int b);
-void connect_region_recur(set<set<int> > region_in, set<set<int> >& region_out);
-void connect_region(set<set<int> > region_in, set<set<int> >& region_out);
-
+void connect_region_recur(set<vector<int> > region_in, set<vector<int> >& region_out);
+void connect_region(set<vector<int> > region_in, set<vector<int> >& region_out);
+void groupiso(vector<vector<int> > &transloc, vector<int> &transgroup, int &max_group_idx);
+bool sort1( const vector<int>& v1, const vector<int>& v2 ) {
+    return v1[0] < v2[0];
+};
+bool sort1r( const vector<int>& v1, const vector<int>& v2 ) {
+    return v1[0] > v2[0];
+};
+bool sort2( const vector<int>& v1, const vector<int>& v2 ) {
+    return v1[1] < v2[1];
+};
+bool sort3( const vector<int>& v1, const vector<int>& v2 ) {
+    return v1[2] < v2[2];
+};
 bool comparator(const pair<double,int> &l, const pair<double,int> &r)
 {
 	return l.first < r.first;
@@ -23,73 +35,26 @@ bool comparator(const pair<double,int> &l, const pair<double,int> &r)
 
 void Info::run()
 {
-	//cout << "Start processing" << endl;
 	int N = X.rows();
 	int M = X.cols();
 	if (M > 1 and N > 1)
 	{
 		preprocess();
-		//cout << "finish preprocess" << endl;
 		vector<MatrixXd> XTX_v;
 		vector<MatrixXd> XT_v;
 		vector<vector<int> > slt_idx_v;
 		vector<vector<int> > beta_map_idx_v;
 		vector<int> all_slt_idx;
 		VectorXd trans_length;
-		//cout << "start sample par" << endl;
 		calsamplespecificpar(XTX_v, XT_v, slt_idx_v, beta_map_idx_v, all_slt_idx, trans_length);
 		
-		//cout << "-----------------X-----------------" << endl;
-		//cout << X << endl;
-		/*
-		cout << "-----------------X-----------------" << endl;
-		for (int i = 0; i < X_v.size(); i++)
-		{
-			cout << "sample i:" << i << endl;
-			cout << X_v[i] << endl;
-		}
-		
-		cout << "-----------------y-----------------" << endl;
-		for (int i = 0; i < y_v.size(); i++)
-		{
-			cout << "sample i:" << i << endl;
-			cout << y_v[i] << endl;
-		}
-		
-		cout << "-----------------R-----------------" << endl;
-		for (int i = 0; i < R_v.size(); i++)
-		{
-			cout << "sample i:" << i << endl;
-			cout << R_v[i] << endl;
-		}
-		
-		cout << "-----------------L-----------------" << endl;
-		for (int i = 0; i < L_v.size(); i++)
-		{
-			cout << "sample i:" << i << endl;
-			cout << L_v[i] << endl;
-		}
-
-		cout << "-----------------slt_idx_v-----------------" << endl;
-		print_vv_int(slt_idx_v);
-
-		cout << "-----------------beta_map_idx_v-----------------" << endl;
-		print_vv_int(beta_map_idx_v);
-		*/
-
-		//int aa;
-		//cin >> aa;
-		
-		
 		trans_length = transL;
-		//cout << "finish sample par" << endl;
 		int niso = all_slt_idx.size();
 		N = X.rows();
 		M = X.cols();
 		double s_w_total = niso / M;
 		int J = y.cols();
 
-		//cout << "Initializing paramter0\n";
 		double v0 = pow(10,-6);
 		Sampler sample;
 		
@@ -106,20 +71,14 @@ void Info::run()
 		VectorXd s_gamma = VectorXd::Ones(M);
 		VectorXd s_z = v0 * VectorXd::Ones(M);
 		
-		//cout << "Initializing paramter2\n";
 		double s_sigma2 = 1E-5;
 		double s_w = niso / M;
 		vector<MatrixXd > samples_beta(iter,MatrixXd(M,J));
 		vector<MatrixXd > samples_R(iter,MatrixXd(M,J));
 		vector<VectorXd > samples_z(iter,VectorXd(M));
 
-
-		//cout << "Start sampling\n";
 		for (int i = 0; i < iter; i++)
 		{
-			//cout << "Sampling iteration " << i << endl;
-			//cout << "Sampling beta " << i << endl; 
-			//sample s_beta_all in each sample
 			for (int j = 0; j < J; j++)
 			{
 				MatrixXd Xt = X_v[j];
@@ -131,7 +90,6 @@ void Info::run()
 				vector<int> slt_idxt = slt_idx_v[j];
 				int Nt = Xt.rows();
 				int Mt = Xt.cols();
-				//cout << "Mt,Nt " << Mt << " " << Nt << endl;
 				VectorXd s_betat = VectorXd::Zero(Mt);
 				VectorXd s_Rt = VectorXd::Zero(Mt);
 				VectorXd s_rho = yt;
@@ -168,15 +126,20 @@ void Info::run()
 
 					VectorXd mu_beta(Map<VectorXd>(mu_betaM.data(),mu_betaM.rows()*mu_betaM.cols()));
 					MatrixXd invsigma_beta = 1/s_sigma2 * A;
-					vector<int> s_beta_idx;
+					vector<int> s_beta_idx = slt_idxt;
 					for (int k = 0; k < Mt;k++)
 					{
 						int countMt = 0;
 						for (int kk = 0; kk < Nt; kk++)
 							countMt += Xt(kk,k);
 						if (countMt > 0)
-							s_beta_idx.push_back(k);
-					}
+						{
+							vector<int>::iterator it = find(s_beta_idx.begin(),s_beta_idx.end(),k);
+							if (it == s_beta_idx.end())
+								s_beta_idx.push_back(k);
+						}
+					}					
+
 					double p = 0;
 					for (int k = 0; k < 10; k++)
 					{
@@ -194,17 +157,6 @@ void Info::run()
 							ctemp(idx) = 0;
 							double ui = mu_beta(idx) + vi2 * btemp.dot(ctemp);
 							double mu_th = get_muth(p, idx, s_beta);
-							//sample truncated normal distribution
-							/*if (k == 9 and j == 0)
-							{
-								//cout << "mu_beta(idx) " << mu_beta(idx) << endl;
-								//cout << "---------------------" << endl;
-								//cout << btemp << endl;
-								//cout << "---------------------" << endl;
-								//cout << ctemp << endl;
-								//cout << "---------------------" << endl;
-								cout << "s_beta(idx) " << s_beta(idx) << " mu: " << ui << " vi2: " << vi2 << " muth: " << mu_th << endl;
-							}*/		
 							double betai = sample.trnormrnd(s_betat(idx),ui,vi2,mu_th);
 							s_betat(idx) = betai;
 						}
@@ -220,16 +172,13 @@ void Info::run()
 							if (Xt(ii,jj) > 0)
 							{
 								idx_include.push_back(jj);
-								//s_beta_include << s_beta(jj);
 							}
 						}
-						//cout << "Sampling R1 " << i << endl;
 						VectorXd s_beta_include(idx_include.size());
 						for (int jj = 0; jj < idx_include.size(); jj++)
 						{
 							s_beta_include(jj) = s_betat(idx_include[jj]);
 						}
-						//cout << "Sampling R2 " << i << endl;
 						
 						if (idx_include.size()>0)
 						{
@@ -237,15 +186,9 @@ void Info::run()
 							double ReadsAssign = Rt(ii);
 							for (int kk = 0; kk < idx_include.size();kk++)
 							{
-								//double sampleR = sample.binornd((int)ReadsAssign,s_beta_include_frac(kk));
-								//s_Rt(idx_include[kk]) += sampleR;
 								s_Rt(idx_include[kk]) += ReadsAssign * s_beta_include_frac(kk);
-								//ReadsAssign = ReadsAssign - ReadsAssign * s_beta_include_frac(kk);
-								//if (ReadsAssign <= 0)
-								//	break;
 							}
 						}
-						//cout << "Sampling R3 " << i << endl;
 					}
 
 				}
@@ -255,45 +198,16 @@ void Info::run()
 					s_Rt(0) = Rt.sum();
 				}
 				
-				//s_beta_all = MatrixXd::Zero(M,J);
-				//s_R_all = MatrixXd::Zero(M,J);
-				//cout << "M,J " << M << " " << J << " " << j << endl;
 				for (int ii = 0; ii < beta_map_idxt.size(); ii++)
 				{
-					//cout << "assign " << ii << " " << beta_map_idxt[ii] << " " << s_betat.size() << " " << s_Rt.size() << endl;
 					s_beta_all(beta_map_idxt[ii],j) = s_betat(ii);
 					s_R_all(beta_map_idxt[ii],j) = s_Rt(ii);
 					
 				}
-				/*
-				cout << "Xt-----------------" << endl;
-				cout << Xt << endl;
-				cout << "yt-----------------" << endl;
-				cout << yt << endl;
-				cout << "Rt-----------------" << endl;
-				cout << Rt << endl;
-				cout << "Lt-----------------" << endl;
-				cout << Lt << endl;
-				cout << "beta_map-----------------" << endl;
-				print_v_int(beta_map_idxt);
-				cout << "s_beta_all-----------------" << endl;
-				cout << s_beta_all << endl;
-				cout << "s_betat-----------------" << endl;
-				cout << s_betat << endl;
-				cout << "s_Rt-----------------" << endl;
-				cout << s_Rt << endl;
-				cout << "s_R_all-----------------" << endl;
-				cout << s_R_all << endl;
-
-				int aa;
-				cin >> aa;*/
-				//cout << "finish assignment" << endl;
 			}
-			//cout << "finish sample beta" << endl;
 			samples_beta[i] = s_beta_all;
 			samples_R[i] = s_R_all;
 
-			//cout << "sample z" << endl;
 			int Nexp_total = sample.binornd(M,s_w_total);
 			
 			if (Nexp_total > niso + 2)
@@ -370,10 +284,8 @@ void Info::run()
 			}
 
 			samples_z[i] = s_z;
-			//cout << "finish sample z" << endl;
 				
 			s_sigma2 = 1e-5; // implement sigma sampling later
-			////cout << "Sampling tau " << i << endl;
 			for (int m = 0; m < M; m++)
 			{
 				VectorXd s_beta_m = s_beta_all.row(m);
@@ -385,10 +297,7 @@ void Info::run()
 			
 
 		}
-		
-		////cout << "Finished sampling\n";
-		
-		// we can also provide sample specific abundance...
+				
 		int burnin = iter - 200;
 		vector<double> final_z(M,0);
 		vector<double> final_beta(M,0);
@@ -461,15 +370,6 @@ void Info::run()
 			final_z[ii] = (double)sumz / (double) (iter-burnin);
 		}
 
-		/*cout << "final_beta: " << endl;
-		print_v(final_beta);
-		cout << "final_R: " << endl;
-		print_v(final_R);
-		cout << "final_z: " << endl;
-		print_v(final_z);
-		int aa;
-		cin >> aa;*/
-
 		VectorXd final_beta_v = VectorXd::Map(&final_beta[0],final_beta.size());
 		VectorXd FPKM, s_reads;
 		calFPKM(final_beta_v,FPKM,s_reads);
@@ -488,7 +388,7 @@ void Info::run()
 
 void Info::calsamplespecificpar(vector<MatrixXd> & XTX, vector<MatrixXd> & XT, vector<vector<int> > &slt_idx_v, vector<vector<int> > &beta_map_idx_v, vector<int> &all_slt_idx, VectorXd &trans_length)
 {
-	//cout << "step 0 " << endl;
+	slt_idx_v.clear();
 	MatrixXd X_R = X;
 	for (int i = 0; i < X.rows(); i++)
 	{
@@ -498,33 +398,23 @@ void Info::calsamplespecificpar(vector<MatrixXd> & XTX, vector<MatrixXd> & XT, v
 		for (int j = 0; j < X.cols(); j++)
 			X_R(i,j) = X(i,j) * sumR;
 	}
-	////cout << "step 1 " << endl;
 	VectorXd sum_X_R1;
 	matSum(X_R,sum_X_R1,1);
-	////cout << "step 2 " << endl;
 	VectorXd all_slt_idxv = VectorXd::Zero(X.cols());
-	////cout << "step 3 " << endl;
 
 	//for each sample...
 	for (int j = 0; j < R.cols(); j++)
 	{
 		vector<int> idx; // segment idx included in sample j
-		//vector<vector<double> > X_R_idx;
 
 		for (int i = 0; i < R.rows(); i++)
 		{
 			if (R(i,j) > 0)
 			{
-				/*vector<double> s_R_idx;
-				for (int ii = 0; ii < X_R.cols(); ii++)
-					s_R_idx.push_back(X_R(i,ii));
-				X_R_idx.push_back(s_R_idx);*/
-				idx.push_back(i);		
-		
+				idx.push_back(i);				
 			}
 		}
 
-		////cout << "step 3_1 " << endl;
 		vector<int> beta_idx;
 		//for each transcript
 		for (int i = 0; i < X.cols(); i++)
@@ -538,7 +428,6 @@ void Info::calsamplespecificpar(vector<MatrixXd> & XTX, vector<MatrixXd> & XT, v
 			if (sum_idxc/sum_allc > 0.9999)
 				beta_idx.push_back(i);
 		}
-		////cout << "step 3_2 " << endl;
 		VectorXd sum_X_R_idx;
 
 		MatrixXd X1 = MatrixXd::Zero(idx.size(),beta_idx.size());
@@ -580,6 +469,7 @@ void Info::calsamplespecificpar(vector<MatrixXd> & XTX, vector<MatrixXd> & XT, v
 		new_idx.clear();
 		
 		getIsoIdxForX(current_idx, new_idx, Xm1, sum_Xm1, trans_length);
+		
 		
 		for (int i = 0; i < new_idx.size(); i++)
 		{
@@ -657,7 +547,6 @@ void Info::preprocess() // calculate unique of X
 		
 	}
 	
-	//X = MatrixXd::Map(&X1[0][0],X1.size(),X1[0].size());
 	vectorcptoMat(X1,X);
 	vectorcptoMat(y1,y);
 	vectorcptoMat(R1,R);
@@ -671,13 +560,11 @@ void Info::preprocess() // calculate unique of X
 		double sumRcount = 0;
 		for (int j = 0; j < y.cols(); j++)
 		{
-			//y(i,j) = lw(i) * y(i,j);//////////////////
 			sumRcount += R(i,j);
 		}	
 		for (int j = 0; j < X.cols(); j++)
 		{
 			X_m(i,j) = sumRcount * X(i,j);
-			//X(i,j) = lw(i) * X(i,j); //////////////////////////////
 			sumX_m(i) += X_m(i,j);
 		}
 	}
@@ -720,10 +607,6 @@ void Info::getIsoIdxForX(vector<int> &current_idx, vector<int> &new_idx, MatrixX
 	{
 		vector<double> sumX_slt;
 		matSum(X_m,slt_exon_idx,slt_exon_idx_temp,1,sumX_slt);
-		for (int i = 0; i < sumX_slt.size(); i++)
-		{
-			sumX_slt[i] = sumX_slt[i] / trans_length(i);
-		}
 		int maxidx = maxidxV(sumX_slt);
 		new_idx.push_back(maxidx);
 		for (int i = 0; i < X_m.rows(); i++)
@@ -751,25 +634,19 @@ void vectorcptoMat(vector<vector<double> > &a, MatrixXd &b)
 
 void Info::modX_exon(vector<vector<int> > &paths)
 {
-	////cout << "Start modifying X_exon" << endl;
 	assert(paths.size()>0);
-	//print_vv_int(paths);
 	X_exon = MatrixXd::Zero(paths[0].size(),paths.size());
-	////cout << "dimension: " << paths[0].size() << " " << paths.size() << endl;
 	for (int i = 0; i < paths.size(); i++)
 	{
 		for (int j = 0; j < paths[i].size(); j++)
 		{
-			////cout << "assign: " << j << " " << i << " pathsize: " << paths[i].size() << endl; 
 			X_exon(j,i) = paths[i][j];
 		}
 	}
-	////cout << "Finish modifying X_exon" << endl;
 }
 
 void Info::modX(vector<vector<int> > &paths)
 {
-	////cout << "Start modifying X" << endl;
 	assert(paths.size()>0);
 	if (paths.size()>1)
 		single = false;
@@ -778,14 +655,11 @@ void Info::modX(vector<vector<int> > &paths)
 	{
 		for (int j = 0; j < paths[i].size(); j++)
 		{
-			////cout << paths[i][j] << " ";
 			X(j,i) = paths[i][j];
 			if (paths[i][j] == 0)
 				X(j,i) = 0;
-			////cout << X(j,i) << " ";
 		}
 	}
-	////cout << "Finish modifying X" << endl;
 }
 
 void Info::mody(vector<vector<double> > &s_y)
@@ -887,11 +761,6 @@ void print_v_int(vector<int> v)
 	cout << endl;
 }
 
-void Info::correct_bias()
-{
-
-}
-
 void print_vv(vector<vector<double> > v)
 {
 	for (int i = 0; i < v.size(); i++)
@@ -940,9 +809,6 @@ void Info::write(string outdir, int gene_idx)
 	string output_str, output_all_str;
 	output_str = output.str();
 	output_all_str = output_all.str();
-	//ofstream outfile, outfile_all;
-	//outfile.open(output_str.c_str());
-	//outfile_all.open(output_all_str.c_str());
 
 	FILE *outfile;
 	FILE *outfile_all;
@@ -961,8 +827,7 @@ void Info::write(string outdir, int gene_idx)
 	if (single) // or single
 	{
 		double singletransReads = R.sum()/R.cols();
-		//cout << singletransReads << endl;
-		if (singletransReads > 12)
+		if (singletransReads > 12 and final_FPKM[0] > 1)
 		{
 			int idx = label.find_first_of("\t");
 			string chr = label.substr(0,idx);
@@ -974,45 +839,39 @@ void Info::write(string outdir, int gene_idx)
 
 			int i = 0;
 			
-			//cout << "final_isoidx.size(): " << final_isoidx.size() << " X: " << X.cols() << endl;
-
-			set<set<int> > exon_region;
-			//cout << "check 1" << endl;
+			set<vector<int> > exon_region;
 			getExonRegion(i,exon_region);
-			//cout << "check 2" << endl;
-			set<set<int> >::iterator it = exon_region.begin();
-			//cout << "exon_region size: " << exon_region.size() << " " << it->size() << endl;
-			set<int>::iterator iti = it->begin();
-			int e_start = *iti;
+			set<vector<int> >::iterator it = exon_region.begin();
+			int e_start = (*it)[0];
 			it = exon_region.begin();
 			for (int ii = 0; ii < exon_region.size()-1; ii++)
 				std::advance(it,1);
-			iti = it->begin();
-			std::advance(iti,1);
-			int e_end = *iti;
+			
+			int e_end = (*it)[1];
+			double translength_s = 0;
+                        for (it = exon_region.begin();it!=exon_region.end();it++)
+	                        translength_s += (*it)[1] - (*it)[0] + 1;
+			
 			stringstream trans_stream;
 			trans_stream << outgene << "." << i+1;
 			string outtrans = trans_stream.str();
 			if (output_all_bool)
-				fprintf(outfile_all, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
-			fprintf(outfile, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+				fprintf(outfile_all, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0);
+			if (exon_region.size() > 1 and translength_s > 500)
+				fprintf(outfile, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0);
 
-			//cout << "check 3" << endl;
 			int exonNum = 1;
 			for (it = exon_region.begin(); it != exon_region.end(); it++)
 			{
-				iti = it->begin();
-				int exon_start = *iti;
-				iti = it->begin();
-				std::advance(iti,1);
-				int exon_end = *iti;
+				int exon_start = (*it)[0];
+				int exon_end = (*it)[1];
 				if (output_all_bool)
-					fprintf(outfile_all, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
-				fprintf(outfile, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+					fprintf(outfile_all, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0);
+				if (exon_region.size() > 1 and translength_s > 500)				
+					fprintf(outfile, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0);
 
 				exonNum++;
 			}
-			//cout << "check 4" << endl;
 		}
 	}
 	else
@@ -1024,51 +883,128 @@ void Info::write(string outdir, int gene_idx)
 		stringstream outgene_stream;
 		outgene_stream << "CUFF." << gene_idx;
 		string outgene = outgene_stream.str();
-
+		vector<int> final_isoidx_slt;
+		
 		for (int i = 0; i < final_isoidx.size(); i++)
 		{
-			//cout << "final_isoidx.size(): " << final_isoidx.size() << " X: " << X.cols() << endl;
+			if (final_isoidx[i] == 1)
+				final_isoidx_slt.push_back(i);
+		}
 
-			set<set<int> > exon_region;
-			//cout << "check 1" << endl;
+		if (final_isoidx_slt.size() > 5)
+		{
+			vector<vector<int> > transloc;
+			vector<int> transgroup;
+			int max_group_idx;
+			vector<double> transFPM;
+			vector<double> translength;
+			//find exon start, end and transcript length
+			for (int i = 0; i < final_isoidx_slt.size(); i++)
+			{
+				set<vector<int> > exon_region;
+				getExonRegion(final_isoidx_slt[i],exon_region);
+				set<vector<int> >::iterator it = exon_region.begin();
+				set<vector<int> >::reverse_iterator itr = exon_region.rbegin();
+				vector<int> transloc_v;
+				transloc_v.push_back((*it)[0]);
+				transloc_v.push_back((*itr)[1]);
+				transloc.push_back(transloc_v);
+				double translength_s = 0;
+				for (it = exon_region.begin();it!=exon_region.end();it++)
+					translength_s += (*it)[1] - (*it)[0] + 1;
+				translength.push_back(translength_s);
+				if (exon_region.size() <= 1 or translength_s < 500)
+					final_isoidx[final_isoidx_slt[i]] = 0;
+				transFPM.push_back(translength_s*final_FPKM[final_isoidx_slt[i]]);
+			}
+			
+			groupiso(transloc,transgroup,max_group_idx);
+			
+			for (int i = 1; i <= max_group_idx; i++)
+			{
+				//search for the group idx
+				set<vector<int> > sorted_list;
+				for (int j = 0; j < transgroup.size(); j++)
+				{
+					if (transgroup[j] == i)
+					{
+						vector<int> sorted_list_s;
+						sorted_list_s.push_back(transFPM[j]);
+						sorted_list_s.push_back(j);
+						sorted_list.insert(sorted_list_s);
+					}
+				}
+				int groupsize = sorted_list.size();
+				if (groupsize > 5)
+				{
+					set<vector<int> >::iterator it = sorted_list.begin();
+					for (int j = 0; j < groupsize-5; j++)
+					{
+						final_isoidx[final_isoidx_slt[(*it)[1]]] = 0;
+						std::advance(it,1);
+					}
+				}
+			}
+		}
+		else
+		{
+			for (int i = 0; i < final_isoidx_slt.size(); i++)
+			{
+				set<vector<int> > exon_region;
+				getExonRegion(final_isoidx_slt[i],exon_region);
+				set<vector<int> >::iterator it = exon_region.begin();
+				double translength_s = 0;
+				for (it = exon_region.begin();it!=exon_region.end();it++)
+					translength_s += (*it)[1] - (*it)[0] + 1;
+				if (exon_region.size() <= 1 or translength_s < 500)
+					final_isoidx[final_isoidx_slt[i]] = 0;
+			}
+		}
+
+		double sum_FPKM = 0;
+		for (int i = 0; i < final_isoidx.size(); i++)
+			if (final_isoidx[i] == 1)
+				sum_FPKM += final_FPKM[i];
+		vector<double> frac_FPKM;
+		for (int i = 0; i < final_isoidx.size(); i++)
+		{
+            		if (final_isoidx[i] == 1)
+				frac_FPKM.push_back(final_FPKM[i]/sum_FPKM);
+			else
+				frac_FPKM.push_back(0);
+		}
+		for (int i = 0; i < final_isoidx.size(); i++)
+		{
+			set<vector<int> > exon_region;
 			getExonRegion(i,exon_region);
-			//cout << "check 2" << endl;
-			set<set<int> >::iterator it = exon_region.begin();
-			//cout << "exon_region size: " << exon_region.size() << " " << it->size() << endl;
-			set<int>::iterator iti = it->begin();
-			int e_start = *iti;
+			set<vector<int> >::iterator it = exon_region.begin();
+			int e_start = (*it)[0];
 			it = exon_region.begin();
 			for (int ii = 0; ii < exon_region.size()-1; ii++)
 				std::advance(it,1);
-			iti = it->begin();
-			std::advance(iti,1);
-			int e_end = *iti;
+			
+			int e_end = (*it)[1];
 			stringstream trans_stream;
 			trans_stream << outgene << "." << i+1;
+
 			string outtrans = trans_stream.str();
 			if (output_all_bool)
-				fprintf(outfile_all, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+				fprintf(outfile_all, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], frac_FPKM[i]);
 			if (final_isoidx[i] == 1)
-				fprintf(outfile, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+				fprintf(outfile, "%s\tIntAPT\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), e_start, e_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), final_FPKM[i], frac_FPKM[i]);
 
-			//cout << "check 3" << endl;
 			int exonNum = 1;
 			for (it = exon_region.begin(); it != exon_region.end(); it++)
 			{
-				iti = it->begin();
-				int exon_start = *iti;
-				iti = it->begin();
-				std::advance(iti,1);
-				int exon_end = *iti;
+				int exon_start = (*it)[0];
+				int exon_end = (*it)[1];
 				if (output_all_bool)
-					fprintf(outfile_all, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+					fprintf(outfile_all, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], frac_FPKM[i]);
 				if (final_isoidx[i] == 1)
-					fprintf(outfile, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\"; conf_lo \"%.6f\"; conf_hi \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], 1.0, final_FPKM[i] * beta_frac_low_high(i,0), final_FPKM[i] * beta_frac_low_high(i,1));
+					fprintf(outfile, "%s\tIntAPT\texon\t%d\t%d\t1000\t%s\t.\tgene_id \"%s\"; transcript_id \"%s\"; exon_number \"%d\"; FPKM \"%.6f\"; frac \"%.6f\";\n",chr.c_str(), exon_start, exon_end, strand.c_str() ,outgene.c_str(), outtrans.c_str(), exonNum, final_FPKM[i], frac_FPKM[i]);
 
 				exonNum++;
 			}
-			//cout << "check 4" << endl;
-			//fprintf(outfile_all, '%s\tSparseIso\ttranscript\t%d\t%d\t1000\t%s\t.\tgene_id "%s"; transcript_id "%s"; FPKM "%.6f"; frac "%.6f"; conf_lo "900"; conf_hi "1100"; cov "20";\n',chr.c_str(), e_start, e_end, strand.c_str(); ,outgene, outtrans, FPKM_temp(idx_ident(j)), frac_temp(idx_ident(j)));
 		}
 	}
 	if (output_all_bool)
@@ -1076,18 +1012,16 @@ void Info::write(string outdir, int gene_idx)
 	fclose(outfile);
 }
 
-void Info::getExonRegion(int isoidx, set<set<int> >& exon_region)
+void Info::getExonRegion(int isoidx, set<vector<int> >& exon_region)
 {
-	set<set<int> > exon_temp;
-	////cout << "check 1.1" << endl;
+	set<vector<int> > exon_temp;
 	for (int i = 0; i < X_exon.rows(); i++)
 	{
-		////cout << "i: " << i << " " << X_exon.rows() << " isoidx: " << isoidx << " " << X_exon.cols() << endl;
 		if (X_exon(i,isoidx) > 0)
 		{
-			set<int> s_exon_temp;
-			s_exon_temp.insert(exonbound[i][0]);
-			s_exon_temp.insert(exonbound[i][1]);
+			vector<int> s_exon_temp;
+			s_exon_temp.push_back(exonbound[i][0]);
+			s_exon_temp.push_back(exonbound[i][1]);
 			exon_temp.insert(s_exon_temp);
 		}
 	}
@@ -1096,12 +1030,13 @@ void Info::getExonRegion(int isoidx, set<set<int> >& exon_region)
 
 }
 
-void connect_region_recur(set<set<int> > region_in, set<set<int> >& region_out)
+void connect_region_recur(set<vector<int> > region_in, set<vector<int> >& region_out)
 {
 	int quit = 0;
-	set<set<int> > temp = region_in;
+	set<vector<int> > temp = region_in;
 	while (quit == 0)
-	{
+	{	
+		region_out.clear();
 		connect_region(temp,region_out);
 		if (region_out.size() == temp.size())
 			quit = 1;
@@ -1110,44 +1045,39 @@ void connect_region_recur(set<set<int> > region_in, set<set<int> >& region_out)
 	}
 }
 
-void connect_region(set<set<int> > region_in, set<set<int> >& region_out)
+void connect_region(set<vector<int> > region_in, set<vector<int> >& region_out)
 {
+	region_out.clear();
 	int count = 1, jump = 0;
-	vector<set<int> > region_in_v;
-	for (set<set<int> >::iterator it = region_in.begin(); it != region_in.end(); it++)
+	vector<vector<int> > region_in_v;
+	for (set<vector<int> >::iterator it = region_in.begin(); it != region_in.end(); it++)
 		region_in_v.push_back(*it);
-	set<int> zeros;
-	zeros.insert(0);
-	zeros.insert(0);
+	vector<int> zeros;
+	zeros.push_back(0);
+	zeros.push_back(0);
 	region_in_v.push_back(zeros);
 	for (int i = 0; i < region_in_v.size()-1; i++)
 	{
-		set<int>::iterator iti = region_in_v[i].begin();
-		std::advance(iti,1);
-		int e_end = *iti;
+		int e_end = region_in_v[i][1];
 		int e_start = 0;
 		
-		set<int>::iterator it1i = region_in_v[i+1].begin();
-		e_start = *it1i;
+		e_start = region_in_v[i+1][0];
 		
 		if (jump == 0)
 		{
 			if (e_start - e_end == 1)
 			{
-				iti = region_in_v[i].begin();
-				int temp1 = *iti;
-				std::advance(iti,1);
-				int temp2 = *iti;
-				iti = region_in_v[i+1].begin();
-				if (temp1 > *iti)
-					temp1 = *iti;
-				std::advance(iti,1);
-				if (temp2 < *iti)
-					temp2 = *iti;
+				int temp1 = region_in_v[i][0];
+				int temp2 = region_in_v[i][1];
+				
+				if (temp1 > region_in_v[i+1][0])
+					temp1 = region_in_v[i+1][0];
+				if (temp2 < region_in_v[i+1][1])
+					temp2 = region_in_v[i+1][1];
 
-				set<int> temp;
-				temp.insert(temp1);
-				temp.insert(temp2);
+				vector<int> temp;
+				temp.push_back(temp1);
+				temp.push_back(temp2);
 				region_out.insert(temp);
 				region_in_v[i+1] = temp;
 				jump = 1;
@@ -1195,4 +1125,48 @@ void Info::calFPKM(VectorXd s_beta, VectorXd &FPKM, VectorXd &s_reads)
 		}
 	}
 	FPKM = s_reads.array() / transL.array() * pow(10,9) / totalReads;
+}
+
+void groupiso(vector<vector<int> > &transloc, vector<int> &transgroup, int &max_group_idx)
+{
+    transgroup.clear();
+    if (transloc.size() == 1)
+    {
+        transgroup.push_back(1);
+        return;
+    }
+    sort(transloc.begin(),transloc.end(),sort2);
+    sort(transloc.begin(),transloc.end(),sort1);
+  
+
+    int current_p1 = transloc[0][0];
+    int current_p2 = transloc[0][1];
+    int grp_idx = 1;
+    transgroup.push_back(grp_idx);
+    for (int i = 1; i < transloc.size(); i++)
+    {
+        if (transloc[i][0] <= current_p2)
+        {
+            if (transloc[i][1] > current_p2)
+                current_p2 = transloc[i][1];
+        }
+        else
+        {
+            current_p1 = transloc[i][0];
+            current_p2 = transloc[i][1];
+            grp_idx++;
+        }
+        transgroup.push_back(grp_idx);
+    }
+    max_group_idx = transgroup[transgroup.size()-1];
+    vector<int> tempgroup = transgroup;
+    for (int i = 0; i < transloc.size(); i++)
+    {
+        for (int j = 0; j < transloc.size(); j++)
+        {
+            if (transloc[j][2] == i+1)
+                transgroup[i] = tempgroup[j];
+        }
+    }
+
 }

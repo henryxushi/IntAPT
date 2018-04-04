@@ -22,29 +22,31 @@
 #include <boost/threadpool.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem.hpp>
-#include "process_junc.cpp"
-#include <assert.h>
 #include "merge_instances.h"
-#include "mergerange.cpp"
+#include "process_junc.h"
+#include <assert.h>
+#include "mergerange.h"
 using namespace std;
 
-void process_junc(vector<string> &instancelist, string &);
-void mergebed(string filename,string outputfile);
+
+
 
 
 class SAMprocess
 {
 public:
 	SAMprocess(){};
-	SAMprocess(string &inbamfile, string &inoutdir, int &inidx, string &ininstname)
+	SAMprocess(string &inbamfile, string &inoutdir, int &inidx, string &ininstname, string &inreadtype, string &intoolpath)
 	{
 		bamfile = inbamfile;
 		outdir = inoutdir;
 		idx = inidx;
 		instname = ininstname;
+		readtype = inreadtype;
+		toolpath = intoolpath;
 	}
 
-	SAMprocess(string &inbamfile, string &inoutdir, int &inidx, string &ininstname, string &inbedsfile, string &inboundsfile)
+	SAMprocess(string &inbamfile, string &inoutdir, int &inidx, string &ininstname, string &inbedsfile, string &inboundsfile, string &intoolpath)
 	{
 		bamfile = inbamfile;
 		outdir = inoutdir;
@@ -52,16 +54,27 @@ public:
 		instname = ininstname;
 		bedsfile = inbedsfile;
 		boundsfile = inboundsfile;
+		toolpath = intoolpath;
 	}
 
 	void run()
 	{
+		/*if (readtype == "p")
+        {
+            stringstream outbamfilesorteds;
+            outbamfilesorteds << toolpath << "samtools sort " << bamfile << " " << bamfile <<".sorted";
+            assert(system(outbamfilesorteds.str().c_str())==0);
+            stringstream outbamfilesorted_str;
+            outbamfilesorted_str << bamfile << ".sorted.bam";
+            string outbamfilesorted = outbamfilesorted_str.str();
+            bamfile = outbamfilesorted;
+        }*/
 		stringstream samtools_stream, instance_stream;
 
 		stringstream samfile;
 		samfile << outdir << "/IntAPT_sam" << idx << ".sam";
 
-		samtools_stream << "samtools view " << bamfile << " > " << samfile.str();
+		samtools_stream << toolpath << "samtools view " << bamfile << " > " << samfile.str();
 		if (system(NULL) == 0)
 		{
 			cerr << "Processor not available" << endl;
@@ -70,8 +83,7 @@ public:
 		else
 			assert(system(samtools_stream.str().c_str())==0);
 
-		//instance_stream << "nice processsam --no-coverage -c 1 -g 1 -u 0.05 -d . -o " << instname << " " << samfile.str() << " 1>/dev/null "; 
-		instance_stream << "nice processsam -g 10 -k 100000 -c 4 -i -o " << instname << " " << samfile.str() << " 1>/dev/null "; 
+		instance_stream << "nice " << toolpath << "processsamS -g 10 -k 100000 -c 4 -i -o " << instname << " " << samfile.str() << " 1>/dev/null "; 
 		
 		if (system(NULL) == 0)
 		{
@@ -89,8 +101,7 @@ public:
 		stringstream samfile;
 		samfile << outdir << "/IntAPT_sam" << idx << ".sam";
 
-		//instance_stream << "nice processsam --no-coverage -c 1 -g 1 -u 0.05 -d . -o " << instname << " -r " << bedsfile << " -e " << boundsfile << " " << samfile.str() << " 1>/dev/null "; 
-		instance_stream << "nice processsam -g 10 -k 100000 -c 4 -i -o " << instname << " -r " << bedsfile << " -e " << boundsfile << " " << samfile.str() << " 1>/dev/null "; 
+		instance_stream << "nice " << toolpath << "processsamS -g 10 -k 100000 -c 4 -i -o " << instname << " -r " << bedsfile << " -e " << boundsfile << " " << samfile.str() << " 1>/dev/null "; 
 		if (system(NULL) == 0)
 		{
 			cerr << "Processor not available" << endl;
@@ -98,6 +109,12 @@ public:
 		}
 		else
 			assert(system(instance_stream.str().c_str())==0);
+		stringstream inputinstfilestream, intronfilestream;
+		inputinstfilestream << instname << ".instance";
+		string inputinstfile = inputinstfilestream.str();
+		intronfilestream << outdir <<"/intronlist" << idx;
+		string intronfile = intronfilestream.str();
+		filter_2nd(inputinstfile,intronfile);
 	};
 
 	string bamfile;
@@ -106,6 +123,8 @@ public:
 	string instname;
 	string bedsfile;
 	string boundsfile;
+	string readtype;
+	string toolpath;
 };
 
 class Job
@@ -119,8 +138,6 @@ public:
 	~Job() {}
 	void run()
 	{
-		//cout << "Sampling\t" << idx << endl;
-		//info->infoidx = idx;
 		if (info->single)
 		{
 			info->run_single();
@@ -140,7 +157,7 @@ private:
 int main(int argc, char* argv[])
 {
 	//get info list in read instance class
-
+	int complicated = 1;
 	Options opt;
 	if (opt.parse_options(argc,argv))
 		exit(-1);
@@ -191,7 +208,6 @@ int main(int argc, char* argv[])
 		    	bamlist_filtered.push_back(outfile_stream.str());
 			}
 			cout << "Input data is paired-end data ..." << endl;
-			cout << "Filtering bam file..." << endl;
 			
 			if (opt.N_cores > 1)
 			{
@@ -207,7 +223,7 @@ int main(int argc, char* argv[])
 			{
 				for (int i = 0; i < bamlist.size(); i++)
 				{
-					BAMfilter filter(bamlist[i],opt.outdir,i);
+					BAMfilter filter(bamlist[i],bamlist_filtered[i],i);
 					filter.filter_bam();
 				}
 			}
@@ -236,7 +252,7 @@ int main(int argc, char* argv[])
 			boost::threadpool::pool multi_tp(opt.N_cores);
 			for (int i = 0; i < J; i++)
 			{
-				boost::shared_ptr<SAMprocess> samproc(new SAMprocess(bamlist_filtered[i],opt.outdir,i,first_instlist[i]));
+				boost::shared_ptr<SAMprocess> samproc(new SAMprocess(bamlist_filtered[i],opt.outdir,i,first_instlist[i],opt.readtype,opt.cempath));
 				multi_tp.schedule(boost::bind(&SAMprocess::run,samproc));
 			}
 			multi_tp.wait();
@@ -245,18 +261,20 @@ int main(int argc, char* argv[])
 		{
 			for (int i = 0; i < J; i++)
 			{
-				SAMprocess samproc(bamlist_filtered[i],opt.outdir,i,first_instlist[i]);
+				SAMprocess samproc(bamlist_filtered[i],opt.outdir,i,first_instlist[i],opt.readtype,opt.cempath);
 				samproc.run();
 			}
 		}
 
 		cout << "Jointly analyzing the junction..." << endl;
-		stringstream boundsfilestream, bedsfilestream;
+		stringstream boundsfilestream, bedsfilestream, intronliststream;
 		boundsfilestream << opt.outdir << "/allbounds.txt";
 		bedsfilestream << opt.outdir << "/allbeds.bed";
+		intronliststream << opt.outdir << "/intronlist";
 		string boundsfile = boundsfilestream.str();
 		string bedsfile = bedsfilestream.str();
-		process_junc(first_instlist,boundsfile,bedsfile);
+		string intronfileprefix = intronliststream.str();
+		process_junc(first_instlist,boundsfile,bedsfile, intronfileprefix);
 
 		stringstream bedssortedfilestream;
 		bedssortedfilestream << opt.outdir << "/allbeds_sorted.bed";
@@ -264,16 +282,60 @@ int main(int argc, char* argv[])
 		stringstream sortbedcmd;
 		sortbedcmd << "sort -k 1,1 -k 2,2n " << bedsfile << " > " << bedssortedfile;
 		assert(system(sortbedcmd.str().c_str())==0);
+
+		//filter old MATLAB code
+		//fitlering large regions that highly possible to be false positives, code in process_junc
+		stringstream filteredbedstream;
+		filteredbedstream << opt.outdir << "/allbeds_sorted_filtered.bed";
+		string filteredbed = filteredbedstream.str();
+		filter_bed(bedssortedfile,filteredbed);
 		
+		stringstream filteredsortedbedstream;
+		filteredsortedbedstream << opt.outdir << "/allbeds_sorted_filtered_sorted.bed";
+		string filteredsortedbed = filteredsortedbedstream.str();
+		stringstream sortfilteredbedcmd;
+		sortfilteredbedcmd << "sort -k 1,1 -k 2,2n " << filteredbed << " > " << filteredsortedbed; 
+		assert(system(sortfilteredbedcmd.str().c_str())==0);
+
 		stringstream mergebedstream;
 		mergebedstream << opt.outdir << "/merged_sorted.bed";
 		string mergebed_str = mergebedstream.str();
 
-		mergebed(bedssortedfile,mergebed_str);
-		//stringstream mergerangecmd;
-		//mergerangecmd << "mergerange " << bedssortedfile << " > " << mergebed;
-		//assert(system(mergerangecmd.str().c_str())==0);
+		mergebed(filteredsortedbed,mergebed_str);
+		
 
+		// test if graph is complex
+		ifstream ifcountjunc,ifcountregion;
+		double countjunc = 0, countregion = 0;
+		ifcountjunc.open(boundsfile.c_str());
+		string countline = "";
+		if (ifcountjunc.is_open())
+		{
+			while (ifcountjunc.good())
+			{
+				getline(ifcountjunc,countline);
+				countjunc++;
+			}
+		}
+		ifcountjunc.close();
+		
+		ifcountregion.open(mergebed_str.c_str());
+                countline = "";
+                if (ifcountregion.is_open())
+                {
+                        while (ifcountregion.good())
+                        {
+                                getline(ifcountregion,countline);
+                                countregion++;
+                        }
+                }
+		cout << "Total num of junctions: " << countjunc << endl;
+		cout << "Total num of regions: " << countregion << endl;
+		if (countjunc/countregion>35)
+			complicated = 1;
+		else
+			complicated = 0;
+		
 		// 2nd round 
 		cout << "Re-analyzing the junctions" << endl;
 		vector<string> second_instlist;
@@ -284,12 +346,29 @@ int main(int argc, char* argv[])
 			second_instlist.push_back(outinstance_stream.str());
 		}
 
-		if (opt.N_cores > 1)
+		vector<string> second_instlist_filtered;
+		for (int i = 0; i < bamlist_filtered.size(); i++)
+		{
+			stringstream outinstance_stream;
+			outinstance_stream << opt.outdir << "/sample_" << i << ".2nd.filtered";
+			second_instlist_filtered.push_back(outinstance_stream.str());
+		}
+		
+		if (opt.readtype == "p")
+		{
+			for (int i = 0; i < bamlist_filtered.size();i++)
+			{
+				stringstream modbam;
+				modbam << bamlist_filtered[i] << ".sorted.bam";
+				bamlist_filtered[i] = modbam.str();
+			}
+		}
+		if (opt.N_cores > 1) //2nd inst filtering is integrated in the multiprocess
 		{
 			boost::threadpool::pool multi_tp(opt.N_cores);
 			for (int i = 0; i < J; i++)
 			{
-				boost::shared_ptr<SAMprocess> samproc(new SAMprocess(bamlist_filtered[i],opt.outdir,i,second_instlist[i],mergebed_str,boundsfile));
+				boost::shared_ptr<SAMprocess> samproc(new SAMprocess(bamlist_filtered[i],opt.outdir,i,second_instlist[i],mergebed_str,boundsfile,opt.cempath));
 				multi_tp.schedule(boost::bind(&SAMprocess::run2nd,samproc));
 			}
 			multi_tp.wait();
@@ -298,7 +377,7 @@ int main(int argc, char* argv[])
 		{
 			for (int i = 0; i < J; i++)
 			{
-				SAMprocess samproc(bamlist_filtered[i],opt.outdir,i,first_instlist[i],mergebed_str,boundsfile);
+				SAMprocess samproc(bamlist_filtered[i],opt.outdir,i,second_instlist[i],mergebed_str,boundsfile,opt.cempath);
 				samproc.run2nd();
 			}
 		}
@@ -307,12 +386,15 @@ int main(int argc, char* argv[])
 		stringstream mergeinststream;
 		mergeinststream << opt.outdir << "/IntAPT_proc.ins";
 		string mergeinst = mergeinststream.str();
-		MergeInst mergeinst_c(second_instlist,mergeinst);
+		MergeInst mergeinst_c(second_instlist_filtered,mergeinst);
 		mergeinst_c.merge_instances();
 		finalInstFile = mergeinst;
 	}
 	else
+	{
 		finalInstFile = opt.InstFile;
+		complicated = 1;
+	}
 
 	if (opt.InstOnly)
 		return 0;
@@ -324,9 +406,8 @@ int main(int argc, char* argv[])
 	string outputfile = outputfile_stream.str();
 	cout << "Constructing splicing graph" << endl;
 	readinstance loadData(opt);
+	loadData.complicated = complicated;
 	loadData.readinstance_p(finalInstFile,outputfile);
-	//vector<Info> infolist;
-	//loadData.getInfoList(infolist);
 	cout << "Finished reading" << endl;
 	ofstream outfile1;
 	outfile1.open(outputfile.c_str(),std::ios_base::app);
@@ -359,7 +440,6 @@ int main(int argc, char* argv[])
 				loadData.infolist[i].infoidx = i;
 				loadData.infolist[i].TOTALREADSJ = totalReads;
 				loadData.infolist[i].totalReads= round(sumreads / loadData.TOTALNUMREADS.size());
-				//cout << "Sampling\t" << i << endl;
 				boost::shared_ptr<Job> job(new Job(&loadData.infolist[i],i));
 				multi_tp.schedule(boost::bind(&Job::run,job));
 			}
@@ -373,26 +453,22 @@ int main(int argc, char* argv[])
 		{
 			if (!loadData.infolist[i].valid)
 				continue;
-			//cout << "Sampling info " << i << endl;
 			loadData.infolist[i].infoidx = i;
 			loadData.infolist[i].TOTALREADSJ = totalReads;
 			loadData.infolist[i].totalReads= round(sumreads / loadData.TOTALNUMREADS.size());
 			
 			if (loadData.infolist[i].single)
 			{
-				//cout << "Sampling info single" << i << endl;
 				loadData.infolist[i].run_single();
 			}
 			else
 			{
-				cout << "Sampling info " << i << endl;
 				loadData.infolist[i].run();
 			}
 		}
 	}
 
 	cout << "Start writing..." << endl;
-	//cout << "IfWriting all\t" << opt.output_all << endl;
 	for (int i = 0; i < loadData.infolist.size(); i++)
 	{
 		if (!loadData.infolist[i].valid)
@@ -402,19 +478,15 @@ int main(int argc, char* argv[])
 		{
 			if (loadData.infolist[i].output_bool)
 			{
-				//cout << "Writing single\t" << i << "/" << loadData.infolist.size() << endl;
 				loadData.infolist[i].write(opt.outdir,i+1);
 			}
 		}
 		else
 		{
-			//cout << "Writing multiple\t" << i << "/" << loadData.infolist.size() << endl;
 			loadData.infolist[i].write(opt.outdir,i+1);
 		}
 		
 	}
-
-	
 
 	return 0;
 }

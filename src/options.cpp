@@ -21,7 +21,7 @@ string OPT_cempath = "";
 string OPT_samtoolspath = "";
 bool OPT_output_all = false;
 
-void Options::assign(string s1, string s2, string s3, int s4, double s5, string s6, bool s7, string s8, string s9, bool s10, bool s11)
+void Options::assign(string s1, string s2, string s3, int s4, double s5, string s6, bool s7, string s8, bool s10, bool s11)
 {
   bamfile = s1;
   outdir = s2;
@@ -31,7 +31,7 @@ void Options::assign(string s1, string s2, string s3, int s4, double s5, string 
   InstFile = s6;
   InstOnly = s7;
   cempath = s8;
-  samtoolspath = s9;
+  samtoolspath = s8;
   output_all = s10;
   use_inst = s11;
 }
@@ -69,9 +69,17 @@ int Options::parse_options(int argc, char* argv[]) {
       break;
     case OPT_CEMPATH:
       OPT_cempath = optarg;
-      break;
-    case OPT_SAMPATH:
       OPT_samtoolspath = optarg;
+      if (!OPT_cempath.empty())
+      {
+        if (OPT_cempath[OPT_cempath.size()-1] != '/')
+        {
+          stringstream temp;
+          temp << OPT_cempath << "/";
+          OPT_cempath = temp.str();
+          OPT_samtoolspath = temp.str();
+        }
+      }
       break;
     case OPT_OUTPUT_ALL:
       OPT_output_all = true;
@@ -155,8 +163,7 @@ int Options::parse_options(int argc, char* argv[]) {
     exit(1);
   }
 
-  
-  assign(OPT_bamfile, OPT_outdir, OPT_readtype, OPT_Ncores, OPT_conf, OPT_InstFile, OPT_InstOnly, OPT_cempath, OPT_samtoolspath, OPT_output_all, use_inst_bool);
+  assign(OPT_bamfile, OPT_outdir, OPT_readtype, OPT_Ncores, OPT_conf, OPT_InstFile, OPT_InstOnly, OPT_cempath, OPT_output_all, use_inst_bool);
 
   return 0;
 }
@@ -178,9 +185,8 @@ string Options::usage () {
 
   usage_info
     << std::endl
-    << " ** Prerequisite program (not needed to set if in system path) :" << std::endl
-    << " --cempath <string>      " << ": the path to processsam." << std::endl
-    << " --sampath <string>      " << ": the path to samtools." << std::endl;
+    << " ** Prerequisite program (not needed to set if the tools in system path) :" << std::endl
+    << " --IntAPTpath <string>     " << ": the path to the tools folder in the package e.g. $PATHTOINTAPTpath/tools." << std::endl;
 
   usage_info
     << std::endl

@@ -39,7 +39,6 @@ void MergeInst::merge_instances()
 			inst_stream.pop_back();			
 	}
 
-	//cout << "Merging instances from " << NofSample << " samples" << endl; 
 	vector<int> totalReads;
 	countTotalReads(inst_stream,NofSample,totalReads);
 
@@ -75,20 +74,12 @@ void MergeInst::merge_instances()
 		outfile << "Instance\t" << ++inst_count << endl;
 
 
-		//cout << "ReadLength:" << endl;
 		vector<double> ReadLength;
 		getReadLength(inst_stream,NofSample,ReadLength);
 				
 		
-		//cout << "ExonInfo:" << endl;
 		vector<ExonInfo> exonInfo;
 		getExonBound(inst_stream,NofSample,exonInfo);
-		/*for(int i = 0; i < exonInfo.size(); i++)
-		{
-			cout << i << ": " << exonInfo[i].s1 << " " << exonInfo[i].s2 << endl;
-			print_v(exonInfo[i].NofReads);
-			print_v(exonInfo[i].p);
-		}*/
 		outfile << "segment\t" << exonInfo.size() << endl;
 		for(int i = 0; i < exonInfo.size(); i++)
 			outfile << "!" << i << "\t" << exonInfo[i].s1 << "\t" << exonInfo[i].s2 << endl;
@@ -142,14 +133,7 @@ void MergeInst::merge_instances()
 		getSegInfo(inst_stream, NofSample, segInfo);
 		outfile << "sgtype\t" << segInfo.size() << endl;
 
-		/*for (std::map<vector<int> , vector<double> >::iterator it = segInfo.begin();it != segInfo.end(); ++it)
-		{
-			cout << "Seg conf: ";
-			print_v(it->first);
-			cout << "Seg abun: ";
-			print_v(it->second);
-			
-		}*/
+
 		int sgcount = 0;
 		for (std::map<vector<int> , vector<double> >::iterator it = segInfo.begin();it != segInfo.end(); ++it)
 		{
@@ -183,11 +167,9 @@ void MergeInst::merge_instances()
 		outfile << endl;
 
 		outfile << "totalreads\t" << 1 << endl;
-		//cout << "totalReads\t" << totalReads.size() << endl;
 		for (int i = 0; i < totalReads.size(); i++)
 		{
 			outfile << totalReads[i] << "\t";
-			//cout << totalReads[i] << "\t";
 		}
 		outfile << endl;
 
@@ -195,9 +177,6 @@ void MergeInst::merge_instances()
 		int idx = tag.find_first_of("\t");
 		outfile << "Chr\t" << tag.substr(0,idx) << endl;
 		outfile << "Dir\t" << tag[tag.size()-1] << endl;
-
-		//int aa;
-		//cin >> aa;
 	}
 	
 }
@@ -205,15 +184,11 @@ void MergeInst::merge_instances()
 void MergeInst::countTotalReads(vector<ifstream *> & inst_stream, int NofSample, vector<int> &totalReads)
 {
 	totalReads.resize(NofSample,0);
-	//cout << "NofSample: " << NofSample << endl;
-	//cout << "totalReads size: " << totalReads.size() << endl;
 	for (int i = 0; i < NofSample; i++)
 	{
 		string line;
-		//cout << "File" << i << ":\t" << inst_stream[i]->good() << endl;
 		while(inst_stream[i]->good())
 		{
-			//cout << "reading" << endl;
 			getline(*inst_stream[i],line);
 			if (line[0] != 'R')
 				continue;
@@ -230,21 +205,16 @@ void MergeInst::countTotalReads(vector<ifstream *> & inst_stream, int NofSample,
 
 string MergeInst::getInstTag(vector<ifstream *> & inst_stream, int NofSample)
 {
-	//cout << "p1" << endl;
 	string tag = "";
 	for (int i = 0; i < NofSample; i++)
 	{
 		string line;
-		//cout << "File" << i << ":\t" << inst_stream[i]->good() << endl;
 		while(inst_stream[i]->good())
 		{
-			//cout << "reading" << endl;
 			getline(*inst_stream[i],line);
 			int idx = line.find_first_of("\t");
 			string label = line.substr(0,idx);
-			//cout << label << "\t" << label.compare("Instance") << endl;
-			//int aa;
-			//cin >> aa;
+		
 			if (label.compare("Instance") == 0)
 			{
 				getline(*inst_stream[i],line);
@@ -333,17 +303,12 @@ void MergeInst::getExonBound(vector<ifstream*> & inst_stream, int NofSample,vect
 			{
 				while(inst_stream[i]->good())
 				{
-					//cout << "exon count: " << exonInfo.size() << endl;
 					for (int j = 0; j < exonInfo.size();j++)
 					{
-						//cout << "index: " << j << endl;
 						getline(*inst_stream[i],line);
-						//cout << line << endl;
 						int idx = line.find_first_of("\t");	
-						//cout << exonInfo[j].s1 << " vs " << atoi(line.substr(0,idx).c_str()) << endl;
 						assert(exonInfo[j].s1 == atoi(line.substr(0,idx).c_str()));
 						int idx1 = line.find_first_of("\t",idx+1);
-						//cout << exonInfo[j].s2 << " vs " << atoi(line.substr(idx+1,idx1-idx).c_str()) << endl;
 						assert(exonInfo[j].s2 == atoi(line.substr(idx+1,idx1-idx).c_str()));
 						idx1 = line.find_first_of("\t",idx1+1);
 						int idx2 = line.find_first_of("\t",idx1+1);
@@ -377,7 +342,6 @@ void MergeInst::getSegInfo(vector<ifstream*> & inst_stream, int NofSample, map<v
 			while (true)
 			{
 				getline(*inst_stream[i],line);
-				//cout << "i"<<i<<":" << line << endl;
 				if (line[0] == 'P')
 					break;
 				int idx = line.find_first_of("\t");

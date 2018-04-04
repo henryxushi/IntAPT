@@ -23,7 +23,7 @@ public:
 	int totalNumofPaths;
 	vector<double> TOTALNUMREADS;
 	void runSparseIso_Threaded();
-	
+	int complicated;	
 };
 
 
